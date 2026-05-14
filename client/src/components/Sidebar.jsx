@@ -4,15 +4,14 @@ import * as LucideIcons from 'lucide-react';
 import SettingsModal from './SettingsModal';
 import ThemeToggle from './ThemeToggle';
 
-export default function Sidebar() {
+export default function Sidebar({ onOpenSettings }) {
   const { activePersona, setPersona, theme, isSidebarCollapsed, setIsSidebarCollapsed } = usePersonaStore();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const isDark = theme === 'dark';
 
   return (
     <aside 
-      className={`rounded-3xl p-6 flex flex-col h-full md:h-[calc(100vh-120px)] lg:h-[calc(100vh-100px)] transition-all duration-500 relative border shadow-2xl ${
-        isSidebarCollapsed ? 'w-24 items-center' : 'w-72'
+      className={`rounded-[32px] p-5 flex flex-col h-full transition-all duration-500 relative border shadow-2xl ${
+        isSidebarCollapsed ? 'w-20 items-center' : 'w-64'
       } ${isDark ? 'glass border-white/10' : 'bg-white border-black/5'}`}
     >
       <button 
@@ -86,10 +85,10 @@ export default function Sidebar() {
 
       <div className={`p-4 border-t mt-auto space-y-4 ${isDark ? 'border-white/5' : 'border-black/5'}`}>
         <button 
-          onClick={() => setIsSettingsOpen(true)}
+          onClick={onOpenSettings}
           className={`w-full flex items-center gap-4 p-3 rounded-2xl transition-all group ${isSidebarCollapsed ? 'justify-center' : ''} ${isDark ? 'hover:bg-white/5' : 'hover:bg-black/5'}`}
         >
-          <LucideIcons.Settings className={`w-5 h-5 transition-colors ${isSettingsOpen ? 'animate-spin-slow' : ''} ${isDark ? 'text-white/30 group-hover:text-white' : 'text-black/30 group-hover:text-black'}`} />
+          <LucideIcons.Settings className={`w-5 h-5 transition-colors group-hover:rotate-90 ${isDark ? 'text-white/30 group-hover:text-white' : 'text-black/30 group-hover:text-black'}`} />
           {!isSidebarCollapsed && <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${isDark ? 'text-white/30 group-hover:text-white' : 'text-black/30 group-hover:text-black'}`}>Settings</span>}
         </button>
 
@@ -105,7 +104,6 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </aside>
   );
 }

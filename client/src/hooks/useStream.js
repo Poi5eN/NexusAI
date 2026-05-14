@@ -9,12 +9,14 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 export function useStream(personaId) {
   const [messages, setMessages] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [activity, setActivity] = useState([]); // Track tool execution events
 
   const sendMessage = useCallback(async (userContent) => {
     const userMessage = { role: 'user', content: userContent };
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setIsStreaming(true);
+    setActivity([]);
 
     // Placeholder for the assistant reply
     setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
@@ -40,7 +42,6 @@ export function useStream(personaId) {
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
 
-        // Parse SSE chunks: "data: {...}\n\n"
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
 
@@ -48,21 +49,50 @@ export function useStream(personaId) {
           if (!line.startsWith('data: ')) continue;
           const payload = line.slice(6).trim();
           if (payload === '[DONE]') continue;
+
           try {
-            const parsed = JSON.parse(payload);
-            const delta = parsed?.choices?.[0]?.delta?.content ?? '';
-            if (delta) {
-              setMessages((prev) => {
-                const copy = [...prev];
-                copy[copy.length - 1] = {
-                  role: 'assistant',
-                  content: (copy[copy.length - 1]?.content ?? '') + delta,
-                };
-                return copy;
-              });
+            const event = JSON.parse(payload);
+            
+            switch (event.type) {
+              case 'token':
+                setMessages((prev) => {
+                  const last = prev[prev.length - 1];
+                  if (last && last.role === 'assistant') {
+                    return [
+                      ...prev.slice(0, -1),
+                      { ...last, content: last.content + event.content }
+                    ];
+                  }
+                  return prev;
+                });
+                break;
+
+              case 'tool_start':
+                setActivity(prev => [...prev, { 
+                  id: Date.now(), 
+                  type: 'tool_start', 
+                  tool: event.tool, 
+                  input: event.input,
+                  status: 'running' 
+                }]);
+                break;
+
+              case 'tool_result':
+                setActivity(prev => {
+                  const copy = [...prev];
+                  const toolIdx = copy.findLastIndex(a => a.tool === event.tool);
+                  if (toolIdx !== -1) {
+                    copy[toolIdx] = { ...copy[toolIdx], status: 'done', result: event.result };
+                  }
+                  return copy;
+                });
+                break;
+
+              case 'error':
+                throw new Error(event.content);
             }
-          } catch {
-            // Ignore malformed SSE chunks
+          } catch (e) {
+            console.error('SSE Error:', e);
           }
         }
       }
@@ -80,7 +110,10 @@ export function useStream(personaId) {
     }
   }, [messages, personaId]);
 
-  const clearMessages = useCallback(() => setMessages([]), []);
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+    setActivity([]);
+  }, []);
 
-  return { messages, sendMessage, isStreaming, clearMessages };
+  return { messages, sendMessage, isStreaming, clearMessages, activity };
 }

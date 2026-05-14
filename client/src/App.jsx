@@ -17,10 +17,12 @@ import usePersonaStore from './stores/personaStore';
 import LandingPage from './pages/LandingPage';
 import AboutPage from './pages/AboutPage';
 import TeamPage from './pages/TeamPage';
+import SettingsModal from './components/SettingsModal';
 
 export default function App() {
   const { activePersona, theme, isSidebarCollapsed } = usePersonaStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const isDark = theme === 'dark';
 
   const renderDashboardView = () => {
@@ -48,7 +50,7 @@ export default function App() {
         
         {/* Dashboard Route */}
         <Route path="/app" element={
-          <div className={`flex flex-col md:flex-row gap-4 lg:gap-6 max-w-[1920px] mx-auto w-full h-screen overflow-hidden md:p-4 lg:p-6 transition-colors duration-700 ${isDark ? 'bg-[#020617]' : 'bg-[#f8f8f7]'}`}>
+          <div className={`flex flex-col md:flex-row gap-3 lg:gap-4 w-full h-screen overflow-hidden md:p-3 lg:p-4 transition-colors duration-700 ${isDark ? 'bg-[#020617]' : 'bg-[#f8f8f7]'}`}>
             
             {/* Mobile Header */}
             <div className={`md:hidden flex items-center justify-between p-4 z-[60] shrink-0 border-b transition-colors ${isDark ? 'bg-black/40 backdrop-blur-xl border-white/5' : 'bg-white border-black/5'}`}>
@@ -70,7 +72,7 @@ export default function App() {
             <div className={`
               fixed md:relative inset-0 z-[100] md:z-auto transition-all duration-500 ease-in-out
               ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-              md:flex md:h-full shrink-0 ${isSidebarCollapsed ? 'md:w-24' : 'md:w-72'}
+              md:flex md:h-full shrink-0 ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}
             `}>
               <div 
                 className="absolute inset-0 bg-black/80 backdrop-blur-sm md:hidden" 
@@ -78,7 +80,10 @@ export default function App() {
               />
               
               <div className="relative w-full h-full flex flex-col">
-                <Sidebar onPersonaSelect={() => setIsMobileMenuOpen(false)} />
+                <Sidebar 
+                  onPersonaSelect={() => setIsMobileMenuOpen(false)} 
+                  onOpenSettings={() => setIsSettingsOpen(true)}
+                />
               </div>
             </div>
 
@@ -88,6 +93,8 @@ export default function App() {
                 {renderDashboardView()}
               </div>
             </main>
+
+            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
           </div>
         } />
       </Routes>

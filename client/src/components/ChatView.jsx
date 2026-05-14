@@ -4,10 +4,11 @@ import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import * as LucideIcons from 'lucide-react';
+import AgentActivityPanel from './AgentActivityPanel';
 
 export default function ChatView() {
   const { activePersona, theme } = usePersonaStore();
-  const { messages, sendMessage, isStreaming, clearMessages } = useStream(activePersona.id);
+  const { messages, sendMessage, isStreaming, clearMessages, activity } = useStream(activePersona.id);
   const [input, setInput] = useState('');
   const endRef = useRef(null);
   const isDark = theme === 'dark';
@@ -28,7 +29,7 @@ export default function ChatView() {
   return (
     <div className={`flex flex-col h-full transition-all duration-500 rounded-[32px] overflow-hidden relative shadow-2xl border ${isDark ? 'glass border-white/5' : 'bg-white border-black/5'}`} style={{ '--persona-color': activePersona.color }}>
       {/* Header */}
-      <div className={`p-5 border-b flex items-center justify-between backdrop-blur-md z-10 sticky top-0 transition-colors ${isDark ? 'bg-black/40 border-white/5' : 'bg-white/80 border-black/5'}`}>
+      <div className={`p-4 border-b flex items-center justify-between backdrop-blur-md z-10 sticky top-0 transition-colors ${isDark ? 'bg-black/40 border-white/5' : 'bg-white/80 border-black/5'}`}>
         <div className="flex items-center gap-4">
           <div 
             className="w-12 h-12 flex items-center justify-center rounded-xl shadow-lg"
@@ -55,7 +56,7 @@ export default function ChatView() {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 scroll-smooth no-scrollbar">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scroll-smooth no-scrollbar">
         {messages.length === 0 ? (
           <div className={`h-full flex flex-col items-center justify-center text-center animate-in fade-in zoom-in duration-700`}>
             <div 
@@ -84,7 +85,7 @@ export default function ChatView() {
             return (
               <div key={i} className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
                 <div 
-                  className={`max-w-[85%] rounded-3xl p-5 md:p-6 shadow-sm border transition-all ${
+                  className={`max-w-[90%] rounded-2xl p-4 md:p-5 shadow-sm border transition-all ${
                     isUser 
                       ? (isDark ? 'bg-white/10 text-white rounded-tr-sm border-white/5 backdrop-blur-sm' : 'bg-black/5 text-black rounded-tr-sm border-black/5 font-medium') 
                       : (isDark ? 'bg-black/40 border-white/5 rounded-tl-sm text-white/90 prose prose-invert' : 'bg-white border-black/5 rounded-tl-sm text-black/80 prose prose-slate')
@@ -106,11 +107,23 @@ export default function ChatView() {
             );
           })
         )}
+        
+        {/* Agent Activity Panel */}
+        {isStreaming && (
+          <div className="flex justify-start">
+            <AgentActivityPanel 
+              activity={activity} 
+              personaColor={activePersona.color} 
+              isDark={isDark} 
+            />
+          </div>
+        )}
+
         <div ref={endRef} className="h-4" />
       </div>
 
       {/* Input Area */}
-      <div className={`p-4 md:p-6 transition-colors duration-700 ${isDark ? 'bg-gradient-to-t from-black/80 to-transparent' : 'bg-gradient-to-t from-black/[0.02] to-transparent'}`}>
+      <div className={`p-3 md:p-4 transition-colors duration-700 ${isDark ? 'bg-gradient-to-t from-black/80 to-transparent' : 'bg-gradient-to-t from-black/[0.02] to-transparent'}`}>
         <form onSubmit={handleSubmit} className="relative flex items-center max-w-4xl mx-auto">
           <input
             type="text"

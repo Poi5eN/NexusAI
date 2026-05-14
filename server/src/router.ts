@@ -9,6 +9,7 @@ import { stream } from 'hono/streaming';
 import { streamChat, chat, type ChatMessage } from './services/openrouter.ts';
 import { generateImage } from './services/huggingface.ts';
 import { webSearch } from './services/websearch.ts';
+import { agentLoop } from './core/agent-loop.ts';
 
 // ── Persona config ──────────────────────────────────────────────────────────
 
@@ -101,15 +102,10 @@ router.post('/chat', async (c) => {
 
   try {
     if (body.stream) {
-      const upstreamRes = await streamChat({ model, messages, stream: true });
-      if (!upstreamRes.body) return c.json({ error: 'No stream body' }, 502);
-
       return stream(c, async (s) => {
-        const reader = upstreamRes.body!.getReader();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          await s.write(value);
+        const loop = agentLoop(persona, messages, model);
+        for await (const event of loop) {
+          await s.write(`data: ${JSON.stringify(event)}\n\n`);
         }
       });
     }
