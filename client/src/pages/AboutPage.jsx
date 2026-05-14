@@ -1,70 +1,136 @@
-import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import * as LucideIcons from 'lucide-react';
+import { PERSONAS } from '../stores/personaStore';
+import usePersonaStore from '../stores/personaStore';
+import ThemeToggle from '../components/ThemeToggle';
+import { useState } from 'react';
 
 export default function AboutPage() {
+  const navigate = useNavigate();
+  const { theme } = usePersonaStore();
+  const [activeIndex, setActiveIndex] = useState(0);
+  
+  const isDark = theme === 'dark';
+
   return (
-    <div className="min-h-screen bg-[#020617] text-white selection:bg-blue-500/30 overflow-x-hidden">
+    <div className={`h-screen w-full transition-colors duration-700 ${isDark ? 'bg-[#020617] text-white' : 'bg-[#fdfdfc] text-[#1a1a1a]'} overflow-hidden flex flex-col relative font-sans selection:bg-amber-100`}>
+      {/* Background Glow */}
+      <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none transition-colors duration-700 ${isDark ? 'bg-blue-600/10' : 'bg-amber-500/5'}`} />
+
       {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b border-white/5 bg-black/20">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.5)]">
-              <LucideIcons.Layers className="w-6 h-6 text-white" />
-            </div>
-            <span className="font-black text-2xl tracking-tighter uppercase italic">Nexus</span>
-          </Link>
-          <div className="hidden md:flex items-center gap-10">
-            <Link to="/" className="text-sm font-bold text-white/50 hover:text-white transition-colors">Home</Link>
-            <Link to="/about" className="text-sm font-bold text-blue-400 transition-colors">About</Link>
-            <Link to="/team" className="text-sm font-bold text-white/50 hover:text-white transition-colors">Team</Link>
-            <Link to="/app" className="bg-white text-black px-6 py-2.5 rounded-full font-black text-sm hover:bg-blue-500 hover:text-white transition-all transform hover:scale-105 active:scale-95">
-              Launch App
-            </Link>
-          </div>
+      <nav className={`shrink-0 h-20 px-6 md:px-12 flex items-center justify-between z-50 transition-colors duration-700 ${isDark ? 'bg-black/20 border-b border-white/5 backdrop-blur-xl' : ''}`}>
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
+          <LucideIcons.Layers className={`w-5 h-5 transition-colors ${isDark ? 'text-blue-500' : 'text-amber-600'}`} strokeWidth={2.5} />
+          <span className={`font-bold text-xl tracking-tight transition-colors ${isDark ? 'text-white' : 'text-[#1a1a1a]'}`}>NEXUS</span>
+        </div>
+        <div className="flex items-center gap-8">
+          <button onClick={() => navigate('/')} className={`text-sm font-medium transition-colors ${isDark ? 'text-white/40 hover:text-white' : 'text-black/40 hover:text-black'}`}>Home</button>
+          <button className={`text-sm font-medium transition-colors ${isDark ? 'text-blue-400' : 'text-amber-700'}`}>About</button>
+          <button onClick={() => navigate('/team')} className={`text-sm font-medium transition-colors ${isDark ? 'text-white/40 hover:text-white' : 'text-black/40 hover:text-black'}`}>Team</button>
+          <ThemeToggle />
+          <button onClick={() => navigate('/app')} className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${isDark ? 'bg-white text-black hover:bg-blue-500 hover:text-white' : 'bg-[#1a1a1a] text-white hover:bg-black'}`}>Launch</button>
         </div>
       </nav>
 
-      {/* Content */}
-      <section className="pt-40 pb-20 px-6 max-w-5xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-12">
-            Democratizing <br />
-            <span className="bg-gradient-to-r from-emerald-400 to-blue-500 bg-clip-text text-transparent">Specialized Intelligence.</span>
-          </h1>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
-            <div className="space-y-6 text-lg text-white/60 font-medium leading-relaxed">
-              <p>
-                Nexus was born from a simple observation: AI is generic, but the world is specialized. Most models try to be everything to everyone, resulting in "jack of all trades, master of none."
-              </p>
-              <p>
-                We built a platform that curates specialized personas—from medical research assistants to legal fact-checkers—each equipped with a unique cognitive toolkit and world-class interface designed specifically for that domain.
-              </p>
+      {/* Content Area */}
+      <main className="flex-1 flex flex-col items-center justify-center p-6 md:p-12 relative z-10 overflow-hidden">
+        <div className="max-w-7xl w-full flex flex-col h-full max-h-[700px]">
+          <div className="mb-10 text-center md:text-left">
+            <motion.h1 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`text-4xl md:text-6xl font-serif font-medium tracking-tight transition-colors ${isDark ? 'text-white' : 'text-[#1a1a1a]'}`}
+            >
+              Intelligence <span className={`italic transition-colors ${isDark ? 'text-blue-500' : 'text-amber-700'}`}>Portfolio.</span>
+            </motion.h1>
+            <p className={`font-medium mt-3 max-w-xl text-sm tracking-wide transition-colors ${isDark ? 'text-white/30' : 'text-black/40'}`}>
+              An ecosystem of specialized cognitive units for every domain.
+            </p>
+          </div>
+
+          <div className="flex-1 flex flex-col md:flex-row gap-6 min-h-0">
+            {/* Persona List Sidebar */}
+            <div className="md:w-64 flex md:flex-col gap-1 overflow-x-auto md:overflow-y-auto no-scrollbar shrink-0 pb-4 md:pb-0">
+              {PERSONAS.map((p, i) => {
+                const Icon = LucideIcons[p.icon] || LucideIcons.Bot;
+                const isActive = activeIndex === i;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => setActiveIndex(i)}
+                    className={`flex items-center gap-3 p-3.5 rounded-2xl transition-all border whitespace-nowrap shrink-0 md:shrink ${
+                      isActive 
+                        ? (isDark ? 'bg-white/10 border-white/20 text-white' : 'bg-white border-black/10 shadow-sm text-black') 
+                        : (isDark ? 'bg-transparent border-transparent hover:bg-white/5 text-white/40 opacity-100' : 'bg-transparent border-transparent hover:bg-black/[0.02] opacity-50')
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${p.color}${isDark ? '22' : '11'}`, color: p.color }}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-bold tracking-tight hidden md:block">{p.label}</span>
+                  </button>
+                );
+              })}
             </div>
-            
-            <div className="glass p-10 rounded-[40px] border border-white/5 bg-white/[0.02]">
-              <h3 className="text-xl font-black mb-4">Our Vision</h3>
-              <p className="text-white/40 text-sm leading-relaxed mb-8">
-                To create a world where expert-level knowledge is accessible to everyone, powered by an army of specialized AI agents working in harmony.
-              </p>
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400">
-                  <LucideIcons.Target className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="text-xs font-black uppercase tracking-widest text-emerald-400">Accuracy</div>
-                  <div className="text-[10px] text-white/30 uppercase tracking-widest">Fact-checked outputs</div>
-                </div>
-              </div>
+
+            {/* Persona Detail Card */}
+            <div className="flex-1 min-w-0 h-full">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={PERSONAS[activeIndex].id}
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  className={`h-full rounded-[32px] border p-8 md:p-12 flex flex-col relative overflow-hidden transition-all duration-700 shadow-sm ${isDark ? 'bg-black/40 border-white/5' : 'bg-white border-black/5'}`}
+                >
+                  <div className="flex items-center gap-6 mb-8">
+                     <div className="w-16 h-16 md:w-20 md:h-20 rounded-3xl flex items-center justify-center shadow-inner transition-all duration-700" style={{ backgroundColor: `${PERSONAS[activeIndex].color}${isDark ? '22' : '11'}`, color: PERSONAS[activeIndex].color }}>
+                        {(() => {
+                          const Icon = LucideIcons[PERSONAS[activeIndex].icon] || LucideIcons.Bot;
+                          return <Icon className="w-8 h-8 md:w-10 md:h-10" />;
+                        })()}
+                     </div>
+                     <div>
+                       <h2 className="text-3xl md:text-5xl font-serif font-medium tracking-tight leading-none">{PERSONAS[activeIndex].label}</h2>
+                       <p className={`text-[10px] font-bold uppercase tracking-widest mt-2 transition-colors ${isDark ? 'text-blue-400' : 'text-amber-700'}`}>Active Framework 4.2</p>
+                     </div>
+                  </div>
+
+                  <div className="flex-1 space-y-8 min-h-0 overflow-y-auto no-scrollbar pr-4">
+                    <p className={`text-lg md:text-xl font-medium leading-relaxed font-serif italic transition-colors ${isDark ? 'text-white/60' : 'text-black/60'}`}>
+                      {PERSONAS[activeIndex].description}.
+                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className={`p-6 rounded-3xl border transition-all duration-700 ${isDark ? 'bg-white/5 border-white/5' : 'bg-black/[0.01] border-black/5'}`}>
+                        <h4 className={`text-[10px] font-bold uppercase tracking-widest mb-2 transition-colors ${isDark ? 'text-white/20' : 'text-black/30'}`}>Capabilities</h4>
+                        <p className={`text-xs font-medium transition-colors ${isDark ? 'text-white/60' : 'text-black/60'}`}>Specialized logic processing for {PERSONAS[activeIndex].label} workflows.</p>
+                      </div>
+                      <div className={`p-6 rounded-3xl border transition-all duration-700 ${isDark ? 'bg-white/5 border-white/5' : 'bg-black/[0.01] border-black/5'}`}>
+                        <h4 className={`text-[10px] font-bold uppercase tracking-widest mb-2 transition-colors ${isDark ? 'text-white/20' : 'text-black/30'}`}>Integration</h4>
+                        <p className={`text-xs font-medium transition-colors ${isDark ? 'text-white/60' : 'text-black/60'}`}>Seamless data retrieval and real-time synthesis.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={() => navigate('/app')}
+                    className={`mt-8 w-full py-4 font-bold text-sm rounded-2xl transition-all active:scale-[0.98] ${isDark ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-[#1a1a1a] text-white hover:bg-black'}`}
+                  >
+                    Deploy Module
+                  </button>
+                </motion.div>
+              </AnimatePresence>
             </div>
           </div>
-        </motion.div>
-      </section>
+        </div>
+      </main>
+
+      {/* Minimal Footer */}
+      <footer className={`shrink-0 h-16 flex items-center justify-center px-8 text-[10px] font-medium tracking-widest uppercase transition-colors ${isDark ? 'text-white/10' : 'text-black/20'}`}>
+        Nexus Intelligence Systems
+      </footer>
     </div>
   );
 }

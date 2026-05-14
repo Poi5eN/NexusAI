@@ -14,7 +14,11 @@ export const PERSONAS = [
 
 const usePersonaStore = create((set) => ({
   activePersona: PERSONAS[0],
+  theme: 'light',
+  isSidebarCollapsed: false,
   setPersona: (persona) => set({ activePersona: persona }),
+  toggleTheme: () => set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
+  setIsSidebarCollapsed: (collapsed) => set({ isSidebarCollapsed: collapsed }),
 }));
 
 export default usePersonaStore;
