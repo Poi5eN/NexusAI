@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 
 export const PERSONAS = [
-  { id: 'chatbot',  label: 'Genius Friend',      icon: '🧠', color: '#a855f7' },
-  { id: 'travel',   label: 'Travel Planner',      icon: '✈️', color: '#10b981' },
-  { id: 'research', label: 'Research Analyst',    icon: '🔬', color: '#f59e0b' },
-  { id: 'support',  label: 'Customer Support',    icon: '💬', color: '#38bdf8' },
-  { id: 'image',    label: 'Image Studio',        icon: '🎨', color: '#ec4899' },
+  { id: 'chatbot',  label: 'Nexus Assistant',      icon: 'Bot', color: '#3b82f6', description: 'Core conversational AI agent' },
+  { id: 'travel',   label: 'Voyage Architect',     icon: 'Map', color: '#10b981', description: 'Itinerary builder & trip planner' },
+  { id: 'research', label: 'Deep Search',          icon: 'Search', color: '#8b5cf6', description: 'Web scraping research analyst' },
+  { id: 'support',  label: 'Support Desk',         icon: 'Headset', color: '#f59e0b', description: 'RAG-powered knowledge base' },
+  { id: 'image',    label: 'Vision Canvas',        icon: 'ImagePlus', color: '#ec4899', description: 'High-res image generation studio' },
 ];
 
 const usePersonaStore = create((set) => ({
