@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import usePersonaStore, { PERSONAS } from '../stores/personaStore';
 import * as LucideIcons from 'lucide-react';
-import { useState } from 'react';
+import SettingsModal from './SettingsModal';
 
 export default function Sidebar() {
   const { activePersona, setPersona } = usePersonaStore();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   return (
     <aside 
@@ -14,21 +16,21 @@ export default function Sidebar() {
     >
       <button 
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute -right-4 top-10 bg-[var(--color-surface-glass)] hover:bg-white/20 border border-white/10 rounded-full p-1.5 transition-colors z-10"
+        className="absolute -right-4 top-10 bg-[#1e293b] hover:bg-white/20 border border-white/10 rounded-full p-1.5 transition-colors z-10 shadow-xl"
       >
-        <LucideIcons.ChevronLeft className={`w-4 h-4 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`} />
+        <LucideIcons.ChevronLeft className={`w-4 h-4 text-white transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`} />
       </button>
 
       <div className="mb-10 flex flex-col items-center">
         {!isCollapsed ? (
           <div className="w-full">
-            <h1 className="text-3xl font-extrabold bg-gradient-to-r from-white to-[var(--color-brand-500)] bg-clip-text text-transparent tracking-tighter">
+            <h1 className="text-3xl font-extrabold bg-gradient-to-r from-white to-blue-500 bg-clip-text text-transparent tracking-tighter">
               NEXUS
             </h1>
             <p className="text-sm text-white/40 mt-1 font-mono uppercase tracking-wider">AI Platform</p>
           </div>
         ) : (
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-white to-[var(--color-brand-500)] flex items-center justify-center font-black text-black">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-white to-blue-500 flex items-center justify-center font-black text-black shadow-lg">
             N
           </div>
         )}
@@ -66,7 +68,7 @@ export default function Sidebar() {
               
               {!isCollapsed && (
                 <div className="text-left overflow-hidden">
-                  <div className="font-semibold text-sm whitespace-nowrap">{persona.label}</div>
+                  <div className="font-semibold text-sm whitespace-nowrap text-white">{persona.label}</div>
                   <div className="text-xs text-white/40 truncate">{persona.description}</div>
                 </div>
               )}
@@ -75,16 +77,29 @@ export default function Sidebar() {
         })}
       </div>
 
-      <div className={`mt-auto pt-6 border-t border-white/5 flex ${isCollapsed ? 'justify-center' : 'justify-between'} items-center`}>
-        {!isCollapsed && <span className="text-xs text-white/30">System Status</span>}
-        <div className="flex items-center gap-2 text-xs text-white/30" title="System Online">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          {!isCollapsed && <span>Online</span>}
+      <div className="p-4 border-t border-white/5 mt-auto space-y-4">
+        {/* Settings Button */}
+        <button 
+          onClick={() => setIsSettingsOpen(true)}
+          className={`w-full flex items-center gap-4 p-3 rounded-2xl hover:bg-white/5 transition-all group ${isCollapsed ? 'justify-center' : ''}`}
+        >
+          <LucideIcons.Settings className={`w-5 h-5 text-white/30 group-hover:text-white transition-colors ${isSettingsOpen ? 'animate-spin-slow text-white' : ''}`} />
+          {!isCollapsed && <span className="text-xs font-black uppercase tracking-widest text-white/30 group-hover:text-white transition-colors">Settings</span>}
+        </button>
+
+        <div className={`flex items-center justify-between ${isCollapsed ? 'flex-col gap-4' : ''}`}>
+          {!isCollapsed && (
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-white/30">System Status</span>
+            </div>
+          )}
+          {isCollapsed && <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]" />}
+          <LucideIcons.ShieldCheck className="w-4 h-4 text-white/10" />
         </div>
       </div>
+
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </aside>
   );
 }
