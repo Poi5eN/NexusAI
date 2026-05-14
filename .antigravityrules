@@ -1,0 +1,41 @@
+# Antigravity Rules — NEXUS Project
+
+## Project: NEXUS — Multi-Persona AI Agent Platform
+5 AI personas: Travel Planner | Genius Friend | Customer Support | Image Studio | Research Analyst
+
+## Stack
+- **Backend**: Bun.js + Hono — `server/` (port 3001)
+- **Frontend**: Vite + React + Tailwind CSS v4 — `client/` (port 5173)
+- **LLMs**: OpenRouter (free tier models)
+- **Images**: Hugging Face Inference API (free tier)
+- **NOT a monorepo** — server and client are fully independent
+
+## Non-Negotiable Rules
+1. **Typed TypeScript** — No implicit `any` in server code. Always use generics.
+2. **Separate envs** — `server/.env` (PORT, API keys, models) | `client/.env` (VITE_* only)
+3. **Test everything** — `bun test` for server, `npm test` for client. Tests must pass before done.
+4. **SSE streaming** — LLM responses use Hono's `stream()`. Never buffer full responses.
+5. **Persona routing** — `X-Persona` header determines which model + system prompt is used.
+6. **Token efficiency** — Keep responses concise. Prefer targeted edits over full rewrites.
+
+## Superpowers
+- `new_persona`: see GEMINI.md
+- `new_service`: see GEMINI.md
+- `premium_ui`: Tailwind + glass utility + data-persona accent + transitions
+
+## Free Models — OpenRouter Only (no billing required)
+| Persona | Model |
+|---------|-------|
+| Travel | `deepseek/deepseek-v4-flash:free` |
+| Chatbot | `openai/gpt-oss-120b:free` |
+| Support | `arcee-ai/trinity-large-thinking:free` |
+| Research | `deepseek/deepseek-v4-flash:free` |
+| Image Prompt | `openai/gpt-oss-120b:free` |
+
+> [!NOTE] All models above are accessed **through OpenRouter**, not directly.
+> You only need ONE key: `OPENROUTER_API_KEY`.
+
+## Free Image Models — Hugging Face Inference API
+- `black-forest-labs/FLUX.1-schnell` (fastest)
+- `stabilityai/sdxl-turbo`
+- `stabilityai/stable-diffusion-3.5-large-turbo`
