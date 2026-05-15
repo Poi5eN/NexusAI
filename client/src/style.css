@@ -52,6 +52,79 @@ body {
 }
 
 /* ===========================
+   Typography & Theme Polish
+   =========================== */
+.prose {
+  max-width: none;
+  color: inherit; /* Fallback */
+}
+
+/* Force light mode colors for prose */
+.prose-slate, [data-theme="light"] .prose {
+  --tw-prose-body: #000000 !important;
+  --tw-prose-headings: #000000 !important;
+  --tw-prose-lead: #000000 !important;
+  --tw-prose-links: var(--accent, #7c3aed) !important;
+  --tw-prose-bold: #000000 !important;
+  --tw-prose-counters: #000000 !important;
+  --tw-prose-bullets: #000000 !important;
+  --tw-prose-hr: #e5e7eb !important;
+  --tw-prose-quotes: #000000 !important;
+  --tw-prose-quote-borders: #e5e7eb !important;
+  --tw-prose-captions: #4b5563 !important;
+  --tw-prose-code: #000000 !important;
+  --tw-prose-pre-code: #e5e7eb !important;
+  --tw-prose-pre-bg: #1f2937 !important;
+  --tw-prose-th-borders: #000000 !important;
+  --tw-prose-td-borders: #e5e7eb !important;
+}
+
+/* Ensure ALL children of prose in light mode are black */
+[data-theme="light"] .prose *:not(a) {
+  color: #000000 !important;
+}
+
+/* Dark mode prose */
+.prose-invert {
+  --tw-prose-body: rgba(255, 255, 255, 0.9) !important;
+  --tw-prose-headings: #ffffff !important;
+  --tw-prose-lead: #9ca3af !important;
+  --tw-prose-links: var(--accent, #a78bfa) !important;
+  --tw-prose-bold: #ffffff !important;
+  --tw-prose-counters: #9ca3af !important;
+  --tw-prose-bullets: #4b5563 !important;
+  --tw-prose-hr: #374151 !important;
+  --tw-prose-quotes: #f3f4f6 !important;
+  --tw-prose-quote-borders: #374151 !important;
+  --tw-prose-captions: #9ca3af !important;
+  --tw-prose-code: #ffffff !important;
+  --tw-prose-pre-code: #d1d5db !important;
+  --tw-prose-pre-bg: rgba(0, 0, 0, 0.5) !important;
+  --tw-prose-th-borders: #4b5563 !important;
+  --tw-prose-td-borders: #374151 !important;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.9rem;
+}
+
+th, td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid currentColor;
+  text-align: left;
+}
+
+th {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
+}
+
+/* ===========================
    Persona Color Accents
    =========================== */
 [data-persona="travel"]   { --accent: oklch(70% 0.2 150); }   /* emerald */

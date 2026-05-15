@@ -42,8 +42,8 @@ export default function ChatView() {
             <IconComponent className="w-6 h-6" strokeWidth={2.5} />
           </div>
           <div>
-            <h2 className={`font-extrabold text-xl tracking-tight transition-colors ${isDark ? 'text-white' : 'text-[#1a1a1a]'}`}>{activePersona.label}</h2>
-            <p className={`text-[10px] uppercase tracking-widest mt-0.5 transition-colors ${isDark ? 'text-white/50' : 'text-black/30'}`}>{activePersona.description}</p>
+            <h2 className={`font-extrabold text-xl tracking-tight transition-colors ${isDark ? 'text-white' : 'text-black'}`}>{activePersona.label}</h2>
+            <p className={`text-[10px] uppercase tracking-widest mt-0.5 transition-colors ${isDark ? 'text-white/50' : 'text-black/50'}`}>{activePersona.description}</p>
           </div>
         </div>
         <button 
@@ -65,7 +65,7 @@ export default function ChatView() {
             >
               <IconComponent className="w-12 h-12" strokeWidth={1.5} />
             </div>
-            <p className={`text-xl font-medium transition-colors ${isDark ? 'text-white/50' : 'text-black/30'}`}>How can I assist you today?</p>
+            <p className={`text-xl font-medium transition-colors ${isDark ? 'text-white/50' : 'text-black/50'}`}>How can I assist you today?</p>
           </div>
         ) : (
           messages.map((msg, i) => {
@@ -87,8 +87,8 @@ export default function ChatView() {
                 <div 
                   className={`max-w-[90%] rounded-2xl p-4 md:p-5 shadow-sm border transition-all ${
                     isUser 
-                      ? (isDark ? 'bg-white/10 text-white rounded-tr-sm border-white/5 backdrop-blur-sm' : 'bg-black/5 text-black rounded-tr-sm border-black/5 font-medium') 
-                      : (isDark ? 'bg-black/40 border-white/5 rounded-tl-sm text-white/90 prose prose-invert' : 'bg-white border-black/5 rounded-tl-sm text-black/80 prose prose-slate')
+                      ? (isDark ? 'bg-white/10 text-white rounded-tr-sm border-white/5 backdrop-blur-sm' : 'bg-black/5 text-black rounded-tr-sm border-black/10 font-bold') 
+                      : (isDark ? 'bg-black/40 border-white/5 rounded-tl-sm text-white/90 prose prose-invert' : 'bg-white border-black/10 rounded-tl-sm text-black prose')
                   }`}
                   style={isUser ? {} : { borderLeft: `4px solid ${activePersona.color}` }}
                 >

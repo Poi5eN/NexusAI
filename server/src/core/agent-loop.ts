@@ -60,6 +60,16 @@ export async function* agentLoop(
     let assistantMessageContent = "";
     let buffer = "";
 
+    const processChunk = (payload: string) => {
+      if (!payload || payload === '[DONE]') return null;
+      try {
+        const chunk = JSON.parse(payload);
+        return chunk.choices?.[0]?.delta;
+      } catch (e) {
+        return null;
+      }
+    };
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -69,38 +79,45 @@ export async function* agentLoop(
       buffer = lines.pop() ?? "";
 
       for (const line of lines) {
-        const payload = line.replace(/^data: /, '').trim();
-        if (!payload || payload === '[DONE]') continue;
+        const delta = processChunk(line.replace(/^data: /, '').trim());
+        if (!delta) continue;
 
-        try {
-          const chunk = JSON.parse(payload);
-          const delta = chunk.choices?.[0]?.delta;
-
-          if (!delta) continue;
-
-          // 1. Handle Tool Calls
-          if (delta.tool_calls) {
-            for (const tc of delta.tool_calls) {
-              if (tc.index !== undefined) {
-                if (!toolCalls[tc.index]) {
-                  toolCalls[tc.index] = { 
-                    id: tc.id, 
-                    function: { name: "", arguments: "" } 
-                  };
-                }
-                if (tc.function?.name) toolCalls[tc.index].function.name += tc.function.name;
-                if (tc.function?.arguments) toolCalls[tc.index].function.arguments += tc.function.arguments;
+        if (delta.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            if (tc.index !== undefined) {
+              if (!toolCalls[tc.index]) {
+                toolCalls[tc.index] = { id: tc.id, function: { name: "", arguments: "" } };
               }
+              if (tc.function?.name) toolCalls[tc.index].function.name += tc.function.name;
+              if (tc.function?.arguments) toolCalls[tc.index].function.arguments += tc.function.arguments;
             }
           }
+        }
+        if (delta.content) {
+          assistantMessageContent += delta.content;
+          yield { type: 'token', content: delta.content };
+        }
+      }
+    }
 
-          // 2. Handle Text Content
-          if (delta.content) {
-            assistantMessageContent += delta.content;
-            yield { type: 'token', content: delta.content };
+    // Final buffer check
+    if (buffer) {
+      const delta = processChunk(buffer.replace(/^data: /, '').trim());
+      if (delta) {
+        if (delta.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            if (tc.index !== undefined) {
+              if (!toolCalls[tc.index]) {
+                toolCalls[tc.index] = { id: tc.id, function: { name: "", arguments: "" } };
+              }
+              if (tc.function?.name) toolCalls[tc.index].function.name += tc.function.name;
+              if (tc.function?.arguments) toolCalls[tc.index].function.arguments += tc.function.arguments;
+            }
           }
-        } catch (e) {
-          // Skip malformed chunks
+        }
+        if (delta.content) {
+          assistantMessageContent += delta.content;
+          yield { type: 'token', content: delta.content };
         }
       }
     }
@@ -118,41 +135,59 @@ export async function* agentLoop(
       };
       messages.push(finalAssistantMessage);
 
-      for (const tc of toolCalls) {
+      // Prepare parallel execution
+      const toolPromises = toolCalls.map(async (tc) => {
         const toolName = tc.function.name;
-        const toolArgs = JSON.parse(tc.function.arguments || "{}");
+        let toolArgs = {};
+        try {
+          toolArgs = JSON.parse(tc.function.arguments || "{}");
+        } catch (e) {
+          console.error(`Error parsing tool arguments for ${toolName}:`, e);
+        }
+        
         const toolDef = tools.find(t => t.schema.name === toolName);
+        if (!toolDef) {
+           return { id: tc.id, name: toolName, error: "Tool not found" };
+        }
 
-        yield { type: 'tool_start', tool: toolName, input: toolArgs };
+        try {
+          const result = await toolDef.execute(toolArgs);
+          return { id: tc.id, name: toolName, result, input: toolArgs };
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          return { id: tc.id, name: toolName, error: errorMsg, input: toolArgs };
+        }
+      });
 
-        if (toolDef) {
-          try {
-            const result = await toolDef.execute(toolArgs);
-            yield { type: 'tool_result', tool: toolName, result };
-            messages.push({
-              role: "tool",
-              tool_call_id: tc.id,
-              name: toolName,
-              content: result
-            });
-          } catch (err) {
-            const errorMsg = err instanceof Error ? err.message : String(err);
-            messages.push({
-              role: "tool",
-              tool_call_id: tc.id,
-              name: toolName,
-              content: `Error: ${errorMsg}`
-            });
-          }
-        } else {
+      // Yield "start" for all tools before executing
+      for (const tc of toolCalls) {
+        let toolArgs = {};
+        try { toolArgs = JSON.parse(tc.function.arguments || "{}"); } catch(e) {}
+        yield { type: 'tool_start', tool: tc.function.name, input: toolArgs };
+      }
+
+      const results = await Promise.all(toolPromises);
+
+      // Yield results and push to messages
+      for (const res of results) {
+        if ('error' in res) {
           messages.push({
             role: "tool",
-            tool_call_id: tc.id,
-            name: toolName,
-            content: "Error: Tool not found"
+            tool_call_id: res.id,
+            name: res.name,
+            content: `Error: ${res.error}`
+          });
+        } else {
+          yield { type: 'tool_result', tool: res.name, result: res.result };
+          messages.push({
+            role: "tool",
+            tool_call_id: res.id,
+            name: res.name,
+            content: res.result
           });
         }
       }
+
       // Loop again to give LLM the tool results
       continue;
     } else {

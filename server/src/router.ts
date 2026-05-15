@@ -10,25 +10,28 @@ import { streamChat, chat, type ChatMessage } from './services/openrouter.ts';
 import { generateImage } from './services/huggingface.ts';
 import { webSearch } from './services/websearch.ts';
 import { agentLoop } from './core/agent-loop.ts';
+import { memoryService } from './services/memory.ts';
 
 // ── Persona config ──────────────────────────────────────────────────────────
 
 const PERSONA_MODELS: Record<string, string> = {
-  travel:   process.env.MODEL_TRAVEL        ?? 'deepseek/deepseek-v4-flash:free',
+  travel:   process.env.MODEL_TRAVEL        ?? 'google/gemini-2.0-flash-exp:free',
   chatbot:  process.env.MODEL_CHATBOT       ?? 'openai/gpt-oss-120b:free',
   support:  process.env.MODEL_SUPPORT       ?? 'arcee-ai/trinity-large-thinking:free',
-  research: process.env.MODEL_RESEARCH      ?? 'deepseek/deepseek-v4-flash:free',
-  image:    process.env.MODEL_IMAGE_PROMPT  ?? 'openai/gpt-oss-120b:free',
-  tutor:    process.env.MODEL_TUTOR         ?? 'deepseek/deepseek-v4-flash:free',
-  medical:  process.env.MODEL_MEDICAL       ?? 'deepseek/deepseek-v4-flash:free',
-  legal:    process.env.MODEL_LEGAL         ?? 'deepseek/deepseek-v4-flash:free',
-  movies:   process.env.MODEL_MOVIES        ?? 'deepseek/deepseek-v4-flash:free',
+  research: process.env.MODEL_RESEARCH      ?? 'google/gemini-2.0-flash-exp:free',
+  image:    process.env.MODEL_IMAGE_PROMPT  ?? 'mistralai/mistral-7b-instruct:free',
+  tutor:    process.env.MODEL_TUTOR         ?? 'google/gemini-2.0-flash-exp:free',
+  medical:  process.env.MODEL_MEDICAL       ?? 'google/gemini-2.0-flash-exp:free',
+  legal:    process.env.MODEL_LEGAL         ?? 'google/gemini-2.0-flash-exp:free',
+  movies:   process.env.MODEL_MOVIES        ?? 'mistralai/mistral-7b-instruct:free',
 };
 
 const SYSTEM_PROMPTS: Record<string, string> = {
   travel: `You are a warm, expert travel planner. You help users plan trips with detailed 
 day-by-day itineraries, local tips, and practical advice. Always ask for dates, budget, 
-and interests before planning. Format itineraries with clear headings and emoji.`,
+and interests before planning. ONCE YOU HAVE ENOUGH INFO, ALWAYS use the 'build_itinerary' tool
+to generate a structured itinerary for the user. Before building it, use 'web_search' to 
+ensure the details (weather, local events, attractions) are up-to-date.`,
 
   chatbot: `You are Nexus, a genius friend — brilliant, warm, and direct. You give real answers, 
 not corporate fluff. You explain complex topics simply, you're honest about what you don't know, 
@@ -39,10 +42,10 @@ Use the provided knowledge base context to answer questions accurately. If you c
 acknowledge it clearly and suggest escalation. Never guess — accuracy matters more than speed.`,
 
   research: `You are an expert research analyst. When given a topic, you:
-1. Break it into key research questions
-2. Synthesize information from multiple angles
-3. Cite sources and flag uncertainties
-4. Produce structured, markdown-formatted reports
+1. Break it into key research questions.
+2. Use 'web_search' to gather data (you can run multiple searches in parallel).
+3. Synthesize information from multiple angles, citing sources.
+4. ONCE COMPLETE, use 'generate_research_report' to produce a structured report.
 Be thorough, balanced, and academically rigorous.`,
 
   image: `You are a creative prompt engineer for AI image generation. 
@@ -91,12 +94,15 @@ router.post('/chat', async (c) => {
   const model = PERSONA_MODELS[persona] ?? PERSONA_MODELS['chatbot']!;
   const systemPrompt = SYSTEM_PROMPTS[persona] ?? SYSTEM_PROMPTS['chatbot']!;
 
-  // Prepend system prompt + optional RAG context
+  // 1. Fetch long-term memory for this persona
+  const history = await memoryService.getContext("default_user", persona);
+  const memoryContext = history.length > 0 
+    ? `\n\n[PERSISTENT MEMORY]\nThe following are snippets from previous conversations. Use them for context if relevant:\n${history.map(m => `${m.role}: ${m.content}`).join('\n')}`
+    : '';
+
+  // 2. Prepend system prompt + optional RAG context + memory
   const messages: ChatMessage[] = [
-    { role: 'system', content: body.context
-        ? `${systemPrompt}\n\n---\nContext:\n${body.context}`
-        : systemPrompt
-    },
+    { role: 'system', content: `${systemPrompt}${memoryContext}${body.context ? `\n\n---\nContext:\n${body.context}` : ''}` },
     ...body.messages,
   ];
 
@@ -104,13 +110,27 @@ router.post('/chat', async (c) => {
     if (body.stream) {
       return stream(c, async (s) => {
         const loop = agentLoop(persona, messages, model);
+        let assistantContent = "";
+        
         for await (const event of loop) {
+          if (event.type === 'token' && event.content) assistantContent += event.content;
           await s.write(`data: ${JSON.stringify(event)}\n\n`);
         }
+
+        // 3. Store result in memory
+        const lastUserMsg = body.messages[body.messages.length - 1]?.content;
+        if (lastUserMsg) await memoryService.store("default_user", persona, "user", lastUserMsg);
+        if (assistantContent) await memoryService.store("default_user", persona, "assistant", assistantContent);
       });
     }
 
     const content = await chat({ model, messages });
+    
+    // Store in memory for non-stream too
+    const lastUserMsg = body.messages[body.messages.length - 1]?.content;
+    if (lastUserMsg) await memoryService.store("default_user", persona, "user", lastUserMsg);
+    if (content) await memoryService.store("default_user", persona, "assistant", content);
+
     return c.json({ content, persona, model });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

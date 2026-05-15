@@ -42,7 +42,10 @@ export default function App() {
   };
 
   return (
-    <div className={`transition-colors duration-700 ${isDark ? 'bg-[#020617] text-white' : 'bg-[#fdfdfc] text-[#1a1a1a]'}`}>
+    <div 
+      data-theme={theme}
+      className={`transition-colors duration-700 ${isDark ? 'bg-[#020617] text-white' : 'bg-[#fdfdfc] text-[#1a1a1a]'}`}
+    >
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/about" element={<AboutPage />} />

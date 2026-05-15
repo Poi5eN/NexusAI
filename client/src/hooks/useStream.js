@@ -97,12 +97,35 @@ export function useStream(personaId) {
         }
       }
     } catch (err) {
+      let displayError = err instanceof Error ? err.message : 'Something went wrong';
+      
+      // Try to parse JSON error from server if it looks like one
+      try {
+        if (displayError.startsWith('LLM Error: ')) {
+          const jsonStr = displayError.replace('LLM Error: ', '');
+          const parsed = JSON.parse(jsonStr);
+          if (parsed.error?.message) {
+            displayError = parsed.error.message;
+          }
+        }
+      } catch (e) {
+        // Fallback to original string
+      }
+
       setMessages((prev) => {
         const copy = [...prev];
-        copy[copy.length - 1] = {
-          role: 'assistant',
-          content: `⚠️ Error: ${err instanceof Error ? err.message : 'Something went wrong'}`,
-        };
+        const last = copy[copy.length - 1];
+        if (last && last.role === 'assistant' && !last.content) {
+          copy[copy.length - 1] = {
+            role: 'assistant',
+            content: `⚠️ **API Error:** ${displayError}`,
+          };
+        } else {
+          copy.push({
+            role: 'assistant',
+            content: `⚠️ **API Error:** ${displayError}`,
+          });
+        }
         return copy;
       });
     } finally {

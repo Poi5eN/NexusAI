@@ -16,7 +16,7 @@ export default function AgentActivityPanel({ activity, personaColor, isDark }) {
             className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
               isDark 
                 ? 'bg-white/5 border-white/5 text-white/70 shadow-lg backdrop-blur-md' 
-                : 'bg-black/5 border-black/5 text-black/60 shadow-sm'
+                : 'bg-black/5 border-black/10 text-black shadow-sm'
             }`}
           >
             <div className="flex items-center justify-center">
@@ -29,7 +29,7 @@ export default function AgentActivityPanel({ activity, personaColor, isDark }) {
             
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-white/40' : 'text-black/30'}`}>
+                <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-white/40' : 'text-black/50'}`}>
                   {event.tool.replace('_', ' ')}
                 </span>
                 <span className={`text-[8px] px-2 py-0.5 rounded-full font-bold uppercase ${
@@ -40,7 +40,7 @@ export default function AgentActivityPanel({ activity, personaColor, isDark }) {
                   {event.status}
                 </span>
               </div>
-              <p className={`text-xs font-medium truncate max-w-[300px] md:max-w-md ${isDark ? 'text-white/60' : 'text-black/60'}`}>
+              <p className={`text-xs font-medium truncate max-w-[300px] md:max-w-md ${isDark ? 'text-white/60' : 'text-black/80'}`}>
                 {event.status === 'running' 
                   ? `Executing search for "${event.input.query}"...` 
                   : `Retrieved ${JSON.parse(event.result || '{"results":[]}').results?.length || 0} results`}
