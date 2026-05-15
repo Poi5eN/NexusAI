@@ -10,6 +10,7 @@ export const PERSONAS = [
   { id: 'medical',  label: 'Medical Assistant',    icon: 'Stethoscope', color: '#ef4444', description: 'Fact-based medical information' },
   { id: 'movies',   label: 'Cinephile Expert',     icon: 'Film', color: '#facc15', description: 'Movie recommendations & planning' },
   { id: 'legal',    label: 'Legal Helper',         icon: 'Scale', color: '#94a3b8', description: 'Legal document & fact assistance' },
+  { id: 'broker',   label: 'Stock Broker',         icon: 'TrendingUp', color: '#06b6d4', description: 'Real-time market analysis & trends' },
 ];
 
 const usePersonaStore = create((set) => ({

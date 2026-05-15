@@ -11,6 +11,7 @@ import TutorView from './components/TutorView';
 import MedView from './components/MedView';
 import MovieView from './components/MovieView';
 import LegalView from './components/LegalView';
+import BrokerView from './components/BrokerView';
 import usePersonaStore from './stores/personaStore';
 
 // Public Pages
@@ -35,6 +36,7 @@ export default function App() {
       case 'medical': return <MedView />;
       case 'movies': return <MovieView />;
       case 'legal': return <LegalView />;
+      case 'broker': return <BrokerView />;
       case 'chatbot':
       default:
         return <ChatView />;

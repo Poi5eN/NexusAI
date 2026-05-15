@@ -10,19 +10,21 @@ import { generateImage } from './services/huggingface.ts';
 import { webSearch } from './services/websearch.ts';
 import { agentLoop } from './core/agent-loop.ts';
 import { memoryService } from './services/memory.ts';
+import { getStockPrice } from './tools/stockPrice.ts';
 
 // ── Persona config ──────────────────────────────────────────────────────────
 
 const PERSONA_MODELS: Record<string, string> = {
-  travel:   process.env.MODEL_TRAVEL        ?? 'google/gemini-2.0-flash-exp:free',
-  chatbot:  process.env.MODEL_CHATBOT       ?? 'google/gemini-2.0-flash-exp:free',
-  support:  process.env.MODEL_SUPPORT       ?? 'deepseek/deepseek-chat-v3-0324:free',
-  research: process.env.MODEL_RESEARCH      ?? 'google/gemini-2.0-flash-exp:free',
-  image:    process.env.MODEL_IMAGE_PROMPT  ?? 'mistralai/mistral-7b-instruct:free',
-  tutor:    process.env.MODEL_TUTOR         ?? 'google/gemini-2.0-flash-exp:free',
-  medical:  process.env.MODEL_MEDICAL       ?? 'deepseek/deepseek-chat-v3-0324:free',
-  legal:    process.env.MODEL_LEGAL         ?? 'deepseek/deepseek-chat-v3-0324:free',
-  movies:   process.env.MODEL_MOVIES        ?? 'mistralai/mistral-7b-instruct:free',
+  travel: process.env.MODEL_TRAVEL ?? 'google/gemini-2.0-flash-exp:free',
+  chatbot: process.env.MODEL_CHATBOT ?? 'google/gemini-2.0-flash-exp:free',
+  support: process.env.MODEL_SUPPORT ?? 'deepseek/deepseek-chat-v3-0324:free',
+  research: process.env.MODEL_RESEARCH ?? 'google/gemini-2.0-flash-exp:free',
+  image: process.env.MODEL_IMAGE_PROMPT ?? 'mistralai/mistral-7b-instruct:free',
+  tutor: process.env.MODEL_TUTOR ?? 'google/gemini-2.0-flash-exp:free',
+  medical: process.env.MODEL_MEDICAL ?? 'deepseek/deepseek-chat-v3-0324:free',
+  legal: process.env.MODEL_LEGAL ?? 'deepseek/deepseek-chat-v3-0324:free',
+  movies: process.env.MODEL_MOVIES ?? 'mistralai/mistral-7b-instruct:free',
+  broker: process.env.MODEL_BROKER ?? 'google/gemini-2.0-flash-exp:free',
 };
 
 // Stateless workflow personas — skip memory injection to save tokens
@@ -39,10 +41,18 @@ When a user asks for a trip, you MUST follow this protocol strictly:
   chatbot: `You are Nexus Assistant — a highly intelligent, warm, direct AI companion. 
 You are like a genius friend who happens to know everything. 
 You never say "I don't know" — you search, find out, and tell them.
-IMPORTANT: You MUST use 'get_stock_price' for any stock market queries (e.g., NVIDIA, Tesla price). 
-Use 'web_search' for other real-time data, current events, or general news. Never guess values.
+You are a dynamic generalist. If you don't know something or if a query involves current events, ALWAYS use 'web_search' immediately.
 You use execute_code when asked about math, data analysis, or running algorithms.
 You are concise but never shallow. You treat the user as smart.`,
+
+  broker: `You are Stock Broker — a professional, precision-focused financial analyst. 
+Your goal is to provide real-time updates, trend analysis, and fact-backed investment suggestions.
+PROTOCOLS:
+1. DATA PRIORITY: You MUST use 'get_stock_price' for every specific ticker query (e.g., NVDA, AAPL).
+2. NEWS & SENTIMENT: Always use 'get_market_news' to gather latest headlines, earnings reports, and market sentiment before giving a trend analysis.
+3. TREND ANALYSIS: Synthesize the price data with the news data to identify patterns.
+4. NO GUESSWORK: Every suggestion must be backed by data retrieved from tools. Never assume or fabricate prices.
+5. ANALYTICAL DEPTH: Provide clear reasoning for your suggestions based on the metrics you retrieve.`,
 
   support: `You are a professional customer support agent. You are patient, empathetic, and solution-focused.
 Use the provided knowledge base context to answer questions accurately. If you cannot find the answer,
@@ -84,6 +94,32 @@ technical interests. Give detailed critiques that explain WHY a movie fits the u
 // ── Router ──────────────────────────────────────────────────────────────────
 
 export const router = new Hono();
+
+// Real-time market summary endpoint for the Broker dashboard
+router.get('/market-summary', async (c) => {
+  try {
+    const tickers = ['^IXIC', '^GSPC', 'BTC-USD'];
+    const results = await Promise.all(tickers.map(symbol => getStockPrice(symbol)));
+
+    // Parse results into a clean format
+    const summary = results.map((res, i) => {
+      const match = res.match(/Price: \$([\d,.]+)\nChange: \$([\d,.-]+) \(([\d,.-]+)%\)/);
+      if (match) {
+        return {
+          symbol: tickers[i] === '^IXIC' ? 'NASDAQ' : tickers[i] === '^GSPC' ? 'S&P 500' : 'BTC / USD',
+          price: match[1],
+          change: match[2],
+          percent: match[3]
+        };
+      }
+      return null;
+    }).filter(Boolean);
+
+    return c.json({ summary });
+  } catch (error) {
+    return c.json({ error: 'Failed to fetch market summary' }, 500);
+  }
+});
 
 /**
  * POST /api/chat
@@ -168,7 +204,7 @@ router.post('/chat', async (c) => {
     }
 
     const content = await chat({ model, messages });
-    
+
     if (!STATELESS_PERSONAS.has(persona)) {
       const lastUserMsg = body.messages[body.messages.length - 1]?.content;
       if (lastUserMsg) await memoryService.store("default_user", persona, "user", lastUserMsg.slice(0, 300));

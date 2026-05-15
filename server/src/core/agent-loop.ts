@@ -2,9 +2,10 @@ import { TOOLS_BY_PERSONA } from '../tools/registry.ts';
 
 // Models confirmed to support tool/function calling on OpenRouter free tier
 const TOOL_CAPABLE_MODELS = [
-  'google/gemini-2.0-flash-exp:free',
-  'deepseek/deepseek-chat-v3-0324:free',
-  'meta-llama/llama-3.1-8b-instruct:free',
+  'google/gemini-2.0-flash-001:free',
+  'google/gemini-2.0-flash-lite-preview-02-05:free',
+  'deepseek/deepseek-chat:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
 ];
 
 // Extended pool for text-only personas (no tool calls)
@@ -58,15 +59,34 @@ async function callLLM(model: string, messages: any[], tools: any[]): Promise<Re
         signal: controller.signal,
         body: JSON.stringify({
           model: ollamaModel,
-          messages: messages.map(m => ({
-            role: m.role,
-            content: m.content,
-            tool_calls: m.tool_calls
-          })),
+          messages: messages.map(m => {
+            const msg: any = { role: m.role, content: m.content || "" };
+            if (m.role === 'assistant' && m.tool_calls) {
+              msg.tool_calls = m.tool_calls.map(tc => {
+                let parsedArgs = tc.function.arguments;
+                if (typeof parsedArgs === 'string' && parsedArgs.trim() !== '') {
+                  try {
+                    parsedArgs = JSON.parse(parsedArgs);
+                  } catch (e) {
+                    // Fallback if it's not valid JSON yet
+                  }
+                }
+                return {
+                  ...tc,
+                  function: {
+                    ...tc.function,
+                    arguments: parsedArgs
+                  }
+                };
+              });
+            }
+            if (m.role === 'tool') msg.tool_call_id = m.tool_call_id;
+            return msg;
+          }),
           stream: true,
           options: {
             temperature: 0.7,
-            num_ctx: 4096 // Ensure sufficient context window
+            num_ctx: 4096 
           },
           tools: tools.length > 0 ? tools.map(t => ({ type: 'function', function: t.schema })) : undefined
         }),
@@ -290,13 +310,24 @@ export async function* agentLoop(
 
             if (toolCallsInChunk.length > 0) {
               for (const tc of toolCallsInChunk) {
-                const idx = tc.index ?? 0;
-                if (!toolCalls[idx]) {
-                  toolCalls[idx] = { id: tc.id ?? `tc_${idx}`, function: { name: '', arguments: '' } };
+                // Determine the correct index or unique identifier for this tool call
+                const tcIdx = tc.index ?? toolCalls.findIndex(existing => existing.id === tc.id);
+                const finalIdx = tcIdx !== -1 ? tcIdx : toolCalls.length;
+
+                if (!toolCalls[finalIdx]) {
+                  toolCalls[finalIdx] = { id: tc.id || `tc_${finalIdx}`, function: { name: '', arguments: '' } };
                 }
-                if (tc.id) toolCalls[idx].id = tc.id;
-                if (tc.function?.name) toolCalls[idx].function.name += tc.function.name;
-                if (tc.function?.arguments) toolCalls[idx].function.arguments += tc.function.arguments;
+                if (tc.id) toolCalls[finalIdx].id = tc.id;
+                if (tc.function?.name) toolCalls[finalIdx].function.name += tc.function.name;
+                if (tc.function?.arguments) {
+                  const chunkArgs = tc.function.arguments;
+                  if (typeof chunkArgs === 'string') {
+                    toolCalls[finalIdx].function.arguments += chunkArgs;
+                  } else if (chunkArgs && typeof chunkArgs === 'object') {
+                    // Some local models send pre-parsed objects in chunks
+                    toolCalls[finalIdx].function.arguments = JSON.stringify(chunkArgs);
+                  }
+                }
               }
             }
           }

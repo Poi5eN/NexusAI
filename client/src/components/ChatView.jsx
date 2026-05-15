@@ -9,6 +9,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 function ToolCallCard({ tool, input, status = 'Running', isDark }) {
+  const isCompleted = status === 'Completed' || status === 'done';
   return (
     <div className={`my-6 rounded-2xl border overflow-hidden shadow-sm transition-all ${isDark ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-200'}`}>
       <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? 'border-blue-500/10' : 'border-blue-200/50'}`}>
@@ -19,10 +20,14 @@ function ToolCallCard({ tool, input, status = 'Running', isDark }) {
           </span>
         </div>
         <div className="flex items-center gap-2">
-           <LucideIcons.Loader2 className={`w-3.5 h-3.5 animate-spin ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
-           <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
-             {status}
-           </span>
+          {isCompleted ? (
+            <LucideIcons.CheckCircle2 className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+          ) : (
+            <LucideIcons.Loader2 className={`w-3.5 h-3.5 animate-spin ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+          )}
+          <span className={`text-[10px] font-bold uppercase tracking-widest ${isCompleted ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-blue-400' : 'text-blue-600')}`}>
+            {isCompleted ? 'Completed' : status}
+          </span>
         </div>
       </div>
       <div className="p-5">
@@ -72,7 +77,42 @@ export default function ChatView() {
   const endRef = useRef(null);
   const isDark = theme === 'dark';
 
+  const [marketData, setMarketData] = useState([]);
+  const [isMarketOpen, setIsMarketOpen] = useState(false);
+
   const IconComponent = LucideIcons[activePersona.icon] || LucideIcons.Bot;
+
+  // Real-time market summary for Broker persona
+  useEffect(() => {
+    if (activePersona.id !== 'broker') return;
+    
+    const checkMarketStatus = () => {
+      const now = new Date();
+      const day = now.getUTCDay(); // 0=Sun, 6=Sat
+      const hour = now.getUTCHours();
+      const min = now.getUTCMinutes();
+      const totalMin = hour * 60 + min;
+      
+      // 9:30 AM - 4:00 PM EST (approx 14:30 - 21:00 UTC)
+      const open = day >= 1 && day <= 5 && totalMin >= 870 && totalMin <= 1260;
+      setIsMarketOpen(open);
+    };
+
+    const fetchMarket = async () => {
+      try {
+        const res = await fetch('http://localhost:3001/api/market-summary');
+        const data = await res.json();
+        if (data.summary) setMarketData(data.summary);
+        checkMarketStatus();
+      } catch (e) {
+        console.error('Failed to fetch market summary:', e);
+      }
+    };
+    
+    fetchMarket();
+    const interval = setInterval(fetchMarket, 30000); // Update every 30s
+    return () => clearInterval(interval);
+  }, [activePersona.id]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -116,6 +156,30 @@ export default function ChatView() {
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 space-y-8 scroll-smooth no-scrollbar">
+        {activePersona.id === 'broker' && (
+          <div className={`mb-10 p-4 rounded-2xl border flex items-center justify-between gap-4 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700 ${isDark ? 'bg-white/5 border-white/10' : 'bg-black/5 border-black/10'}`}>
+            <div className="flex items-center gap-6 overflow-x-auto no-scrollbar whitespace-nowrap py-1">
+              {marketData.length > 0 ? marketData.map((m, idx) => (
+                <div key={idx} className="flex flex-col">
+                  <span className={`text-[9px] font-black uppercase tracking-tighter ${isDark ? 'text-white/40' : 'text-black/40'}`}>{m.symbol}</span>
+                  <span className="text-sm font-mono font-bold text-emerald-500">
+                    {m.price} <span className="text-[10px]">{m.percent}%</span>
+                  </span>
+                </div>
+              )) : (
+                <div className="flex items-center gap-2 animate-pulse">
+                  <div className="w-2 h-2 rounded-full bg-[var(--persona-color)]"></div>
+                  <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Loading Live Indices...</span>
+                </div>
+              )}
+            </div>
+            <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest ${isMarketOpen ? (isDark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-emerald-50 border-emerald-200 text-emerald-600') : (isDark ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-rose-50 border-rose-200 text-rose-600')}`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${isMarketOpen ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
+              Market {isMarketOpen ? 'Open' : 'Closed'}
+            </div>
+          </div>
+        )}
+
         {messages.length === 0 ? (
           <div className={`h-full flex flex-col items-center justify-center text-center animate-in fade-in zoom-in duration-1000`}>
             <div
@@ -124,7 +188,26 @@ export default function ChatView() {
             >
               <IconComponent className="w-12 h-12" strokeWidth={1.2} />
             </div>
-            <p className={`text-2xl font-light tracking-tight transition-colors ${isDark ? 'text-white/30' : 'text-black/30'}`}>How can I assist you today?</p>
+            <p className={`text-2xl font-light tracking-tight transition-colors ${isDark ? 'text-white/30' : 'text-black/30'}`}>
+              {activePersona.id === 'broker' ? 'Ready for market analysis. Which ticker shall we track?' :
+                activePersona.id === 'chatbot' ? 'I am up and ready! How can I help you today?' :
+                  `How can I assist you with ${activePersona.label} today?`}
+            </p>
+            <div className="mt-8 flex flex-wrap justify-center gap-3 max-w-2xl px-4">
+              {activePersona.id === 'broker' ? (
+                <>
+                  <button onClick={() => sendMessage('Analyze NVIDIA (NVDA) stock trend')} className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${isDark ? 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10' : 'bg-black/5 border-black/10 text-black/60 hover:bg-black/10'}`}>NVDA Analysis</button>
+                  <button onClick={() => sendMessage('Top 5 trending stocks today')} className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${isDark ? 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10' : 'bg-black/5 border-black/10 text-black/60 hover:bg-black/10'}`}>Market Trends</button>
+                  <button onClick={() => sendMessage('Give me investment suggestions for AI sector')} className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${isDark ? 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10' : 'bg-black/5 border-black/10 text-black/60 hover:bg-black/10'}`}>AI Sector Suggestions</button>
+                </>
+              ) : activePersona.id === 'chatbot' ? (
+                <>
+                  <button onClick={() => sendMessage('What is the latest news today?')} className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${isDark ? 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10' : 'bg-black/5 border-black/10 text-black/60 hover:bg-black/10'}`}>Latest News</button>
+                  <button onClick={() => sendMessage('Help me plan my day')} className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${isDark ? 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10' : 'bg-black/5 border-black/10 text-black/60 hover:bg-black/10'}`}>Plan My Day</button>
+                  <button onClick={() => sendMessage('Explain quantum computing simply')} className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${isDark ? 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10' : 'bg-black/5 border-black/10 text-black/60 hover:bg-black/10'}`}>Learn Something</button>
+                </>
+              ) : null}
+            </div>
           </div>
         ) : (
           messages.map((msg, i) => {
@@ -148,10 +231,10 @@ export default function ChatView() {
               <div key={i} className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-4 duration-500`}>
                 <div
                   className={`relative max-w-[95%] md:max-w-[85%] rounded-3xl p-5 md:p-7 shadow-2xl transition-all break-words ${isUser
-                    ? (isDark ? 'bg-white/10 text-white rounded-tr-none border border-white/10 backdrop-blur-md' : 'bg-blue-600 text-white rounded-tr-none border border-blue-700 font-medium')
+                    ? (isDark ? 'bg-white/10 text-white rounded-tr-none border border-white/10 backdrop-blur-md' : 'text-white rounded-tr-none border font-medium')
                     : (isDark ? 'bg-[#121214] border border-white/5 rounded-tl-none text-white/90' : 'bg-white border border-black/5 rounded-tl-none text-black/90')
                     }`}
-                  style={isUser && !isDark ? { backgroundColor: activePersona.color || '#2563eb' } : (!isUser ? { borderLeft: `6px solid ${activePersona.color}` } : {})}
+                  style={isUser && !isDark ? { backgroundColor: activePersona.color || '#2563eb', borderColor: activePersona.color } : (!isUser ? { borderLeft: `6px solid ${activePersona.color}` } : {})}
                 >
                   <div className={`prose max-w-none prose-sm md:prose-base transition-colors ${isDark ? 'prose-invert' : 'prose-slate'} ${(isUser && !isDark) ? 'text-white' : ''}`}>
                     {msg.tool && <ToolCallCard tool={msg.tool} input={msg.input} status="Completed" isDark={isDark} />}
@@ -166,21 +249,23 @@ export default function ChatView() {
                             if (text.trim().startsWith('[{"name":') || text.trim().startsWith('[{"tool_calls"')) {
                               try {
                                 const parsed = JSON.parse(text);
-                                if (Array.isArray(parsed) && parsed[0]?.name === 'execute_code') {
-                                  const codeArgs = typeof parsed[0].arguments === 'string' ? JSON.parse(parsed[0].arguments) : parsed[0].arguments;
+                                if (Array.isArray(parsed) && parsed[0]?.name) {
+                                  const toolName = parsed[0].name;
+                                  const toolArgs = typeof parsed[0].arguments === 'string' ? JSON.parse(parsed[0].arguments) : parsed[0].arguments;
+
                                   return (
                                     <div className="my-4 p-4 rounded-xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10">
                                       <div className="flex items-center gap-2 mb-3 text-xs font-bold text-[var(--persona-color)] uppercase tracking-wider">
                                         <LucideIcons.Terminal className="w-4 h-4" />
-                                        Executing {codeArgs.language || 'script'}
+                                        System Tool: {toolName}
                                       </div>
                                       <SyntaxHighlighter
-                                        language={codeArgs.language || 'javascript'}
+                                        language={toolName === 'execute_code' ? (toolArgs.language || 'javascript') : 'json'}
                                         style={isDark ? oneDark : oneLight}
-                                        customStyle={{ margin: 0, borderRadius: '8px', fontSize: '12px' }}
+                                        customStyle={{ margin: 0, borderRadius: '8px', fontSize: '11px' }}
                                         wrapLongLines={true}
                                       >
-                                        {codeArgs.code}
+                                        {toolName === 'execute_code' ? toolArgs.code : JSON.stringify(toolArgs, null, 2)}
                                       </SyntaxHighlighter>
                                     </div>
                                   );
@@ -190,7 +275,7 @@ export default function ChatView() {
                                 return (
                                   <div className="flex items-center gap-3 text-sm font-medium text-[var(--persona-color)] animate-pulse">
                                     <LucideIcons.Cpu className="w-4 h-4" />
-                                    <span>Compiling script...</span>
+                                    <span>Processing background task...</span>
                                   </div>
                                 );
                               }

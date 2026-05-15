@@ -174,6 +174,24 @@ export const codeExecutorTool: ToolDefinition = {
   }
 };
 
+export const marketNewsTool: ToolDefinition = {
+  schema: {
+    name: "get_market_news",
+    description: "Get the latest financial and market news for a specific sector or company.",
+    parameters: {
+      type: "object",
+      properties: {
+        category: { type: "string", description: "The sector or company to get news for (e.g., technology, AI, NVIDIA)." }
+      },
+      required: ["category"]
+    }
+  },
+  execute: async ({ category }) => {
+    const response = await webSearch(`${category} latest financial market news and earnings`, 5);
+    return response.results.map(r => `[${r.title}](${r.url})\n${r.content}`).join('\n\n');
+  }
+};
+
 export const TOOLS_BY_PERSONA: Record<string, ToolDefinition[]> = {
   travel: [webSearchTool, buildItineraryTool],
   chatbot: [webSearchTool, codeExecutorTool, stockPriceTool, recallMemoryTool],
@@ -184,4 +202,5 @@ export const TOOLS_BY_PERSONA: Record<string, ToolDefinition[]> = {
   medical: [webSearchTool],
   legal: [webSearchTool],
   movies: [webSearchTool],
+  broker: [webSearchTool, stockPriceTool, codeExecutorTool, marketNewsTool],
 };

@@ -2,33 +2,45 @@
  * useStream — SSE streaming hook for chat messages.
  * Usage: const { sendMessage, messages, isStreaming } = useStream(personaId);
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 export function useStream(personaId) {
-  const [messages, setMessages] = useState([]);
+  // Use a unique key for each persona's history in localStorage
+  const storageKey = `nexus_chat_${personaId}`;
+
+  const [messages, setMessages] = useState(() => {
+    const saved = localStorage.getItem(storageKey);
+    return saved ? JSON.parse(saved) : [];
+  });
   const [isStreaming, setIsStreaming] = useState(false);
   const [activity, setActivity] = useState([]); // Track tool execution events
 
+  // Persist messages whenever they change
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(messages));
+  }, [messages, storageKey]);
+
   const sendMessage = useCallback(async (userContent) => {
     const userMsg = { role: 'user', content: userContent };
-    
-    // Append to messages instead of replacing to preserve history
+
     setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: '' }]);
     setIsStreaming(true);
     setActivity([]);
 
     try {
+      // Use the current messages for context if needed, but here we just send the new one
+      // If the backend supported full history, we'd pass it here.
       const res = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Persona': personaId,
         },
-        body: JSON.stringify({ 
-          messages: [userMsg], 
-          stream: true 
+        body: JSON.stringify({
+          messages: [userMsg],
+          stream: true
         }),
       });
 
@@ -53,7 +65,7 @@ export function useStream(personaId) {
 
           try {
             const event = JSON.parse(payload);
-            
+
             switch (event.type) {
               case 'token':
                 setMessages((prev) => {
@@ -82,12 +94,12 @@ export function useStream(personaId) {
                 break;
 
               case 'tool_start':
-                setActivity(prev => [...prev, { 
-                  id: Date.now(), 
-                  type: 'tool_start', 
-                  tool: event.tool, 
+                setActivity(prev => [...prev, {
+                  id: Date.now(),
+                  type: 'tool_start',
+                  tool: event.tool,
                   input: event.input,
-                  status: 'running' 
+                  status: 'running'
                 }]);
                 setMessages(prev => [
                   ...prev,
@@ -127,7 +139,7 @@ export function useStream(personaId) {
       }
     } catch (err) {
       let displayError = err instanceof Error ? err.message : 'Something went wrong';
-      
+
       // Try to parse JSON error from server if it looks like one
       try {
         if (displayError.startsWith('LLM Error: ')) {
