@@ -14,10 +14,10 @@ export function useStream(personaId) {
   const sendMessage = useCallback(async (userContent) => {
     const userMsg = { role: 'user', content: userContent };
     
-    // Reset state for new stream
+    // Append to messages instead of replacing to preserve history
+    setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: '' }]);
     setIsStreaming(true);
     setActivity([]);
-    setMessages([userMsg, { role: 'assistant', content: '' }]);
 
     try {
       const res = await fetch(`${API_URL}/api/chat`, {
@@ -89,6 +89,14 @@ export function useStream(personaId) {
                   input: event.input,
                   status: 'running' 
                 }]);
+                setMessages(prev => [
+                  ...prev,
+                  {
+                    role: 'assistant',
+                    tool: event.tool,
+                    input: event.input,
+                  }
+                ]);
                 break;
 
               case 'tool_result':
@@ -100,6 +108,13 @@ export function useStream(personaId) {
                   }
                   return copy;
                 });
+                setMessages(prev => [
+                  ...prev,
+                  {
+                    role: 'assistant',
+                    result: event.result,
+                  }
+                ]);
                 break;
 
               case 'error':

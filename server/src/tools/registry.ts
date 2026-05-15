@@ -1,5 +1,6 @@
 import { webSearch } from '../services/websearch.ts';
 import { memoryService } from '../services/memory.ts';
+import { getStockPrice } from './stockPrice.ts';
 
 export interface ToolDefinition {
   schema: {
@@ -126,13 +127,60 @@ export const buildItineraryTool: ToolDefinition = {
   }
 };
 
+export const codeExecutorTool: ToolDefinition = {
+  schema: {
+    name: "execute_code",
+    description: "Execute Python or JavaScript code and return the output. Use this for math, data analysis, or code testing.",
+    parameters: {
+      type: "object",
+      properties: {
+        code: { type: "string", description: "The source code to execute." },
+        language: { type: "string", enum: ["python", "javascript"], description: "The programming language." }
+      },
+      required: ["code", "language"]
+    }
+  },
+  execute: async ({ code, language }) => {
+    try {
+      const cmd = language === 'python' ? ['python3', '-c', code] : ['bun', 'eval', code];
+      const proc = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe' });
+      
+      const stdout = await new Response(proc.stdout).text();
+      const stderr = await new Response(proc.stderr).text();
+      const exitCode = await proc.exited;
+
+      if (exitCode !== 0) {
+        return `Error (Exit ${exitCode}): ${stderr || stdout}`;
+      }
+      return stdout || (stderr ? `Warnings: ${stderr}` : 'Code executed successfully (no output).');
+    } catch (err) {
+      return `Failed to execute ${language} code: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+};export const stockPriceTool: ToolDefinition = {
+  schema: {
+    name: "get_stock_price",
+    description: "Get live real-time stock prices and daily market data.",
+    parameters: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", description: "The stock ticker symbol (e.g., AAPL, NVDA, TSLA)." }
+      },
+      required: ["symbol"]
+    }
+  },
+  execute: async ({ symbol }) => {
+    return await getStockPrice(symbol);
+  }
+};
+
 export const TOOLS_BY_PERSONA: Record<string, ToolDefinition[]> = {
   travel: [webSearchTool, buildItineraryTool],
-  chatbot: [webSearchTool, recallMemoryTool],
+  chatbot: [webSearchTool, codeExecutorTool, stockPriceTool, recallMemoryTool],
   research: [webSearchTool, generateResearchReportTool],
   support: [], 
   image: [],   
-  tutor: [webSearchTool],
+  tutor: [webSearchTool, codeExecutorTool],
   medical: [webSearchTool],
   legal: [webSearchTool],
   movies: [webSearchTool],

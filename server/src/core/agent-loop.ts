@@ -16,6 +16,18 @@ const TEXT_ONLY_MODELS = [
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 
+
+const SYSTEM_PROMPT = `
+You are an advanced, tool-augmented AI agent.
+
+CRITICAL RESEARCH PROTOCOLS:
+1. NEVER fabricate live data or stock prices from memory.
+2. If the user asks for current info (stocks, news, weather), you MUST use a tool immediately.
+3. NEVER say "Let's assume" or "I think the price is...". 
+4. If you don't have a tool for the specific request, use 'web_search'.
+5. Accuracy is your absolute priority. Use real data from tools only.
+`;
+
 export interface AgentEvent {
   type: 'token' | 'tool_start' | 'tool_result' | 'error' | 'done';
   content?: string;
@@ -33,13 +45,17 @@ function getApiKey(): string {
 async function callLLM(model: string, messages: any[], tools: any[]): Promise<Response> {
   // --- Local Ollama Development Mode ---
   if (model === 'ollama' || (process.env.NODE_ENV === 'development' && process.env.OLLAMA_URL)) {
-    const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434/api/chat';
+    const ollamaUrl = (process.env.OLLAMA_URL || 'http://127.0.0.1:11434/api/chat').replace('localhost', '127.0.0.1');
     const ollamaModel = process.env.OLLAMA_MODEL || 'mistral';
-    
+
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout for local model
+
       const ollamaRes = await fetch(ollamaUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           model: ollamaModel,
           messages: messages.map(m => ({
@@ -48,16 +64,25 @@ async function callLLM(model: string, messages: any[], tools: any[]): Promise<Re
             tool_calls: m.tool_calls
           })),
           stream: true,
+          options: {
+            temperature: 0.7,
+            num_ctx: 4096 // Ensure sufficient context window
+          },
           tools: tools.length > 0 ? tools.map(t => ({ type: 'function', function: t.schema })) : undefined
         }),
       });
+      clearTimeout(timeoutId);
+
       if (ollamaRes.ok) return ollamaRes;
-      
-      // If we specifically requested ollama and it failed, throw so the loop knows
-      if (model === 'ollama') throw new Error(`Ollama returned ${ollamaRes.status}`);
+
+      const errText = await ollamaRes.text();
+      console.warn(`[AGENT] Ollama Error (${ollamaRes.status}):`, errText);
+
+      if (model === 'ollama') throw new Error(`Ollama returned ${ollamaRes.status}: ${errText}`);
     } catch (e) {
-      if (model === 'ollama') throw e; // Rethrow to trigger fallback in the loop
-      console.warn('[AGENT] Ollama fallback triggered:', e instanceof Error ? e.message : String(e));
+      if (model === 'ollama') throw e;
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[AGENT] Ollama connection issue on ${ollamaUrl}: ${msg}. Using cloud fallback.`);
     }
   }
 
@@ -103,6 +128,13 @@ export async function* agentLoop(
   console.log(`[SYSTEM] ---------------------------\n`);
 
   const tools = TOOLS_BY_PERSONA[personaId] || [];
+
+  // Consolidate system prompts to avoid confusion (merge generic rules with persona rules)
+  if (messages.length > 0 && messages[0].role === 'system') {
+    messages[0].content = `${SYSTEM_PROMPT}\n\n${messages[0].content}`;
+  } else {
+    messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...messages];
+  }
   let loopCount = 0;
   const maxLoops = 4; // keep low to conserve free-tier tokens
 
@@ -224,7 +256,7 @@ export async function* agentLoop(
                 toolCallsInChunk = delta?.tool_calls || [];
               } catch { continue; }
             }
-          } 
+          }
           // --- 2. Parse Ollama (NDJSON) ---
           else {
             try {
@@ -242,8 +274,18 @@ export async function* agentLoop(
 
           if (delta) {
             if (delta.content) {
-              assistantMessageContent += delta.content;
-              yield { type: 'token', content: delta.content };
+              // HACK: Some models leak raw tool-call JSON into the content field.
+              // We detect this using a more robust regex that catches multiline JSON arrays.
+              const contentStr = delta.content.trim();
+              const isRawToolCall =
+                contentStr.startsWith('[{"name":') ||
+                contentStr.startsWith('{"tool_calls":') ||
+                (/^\[\s*\{\s*"name"\s*:/).test(contentStr);
+
+              if (!isRawToolCall) {
+                assistantMessageContent += delta.content;
+                yield { type: 'token', content: delta.content };
+              }
             }
 
             if (toolCallsInChunk.length > 0) {
@@ -267,7 +309,7 @@ export async function* agentLoop(
       console.error('[AGENT] Stream read error:', streamErr);
       gotRateLimited = true;
     } finally {
-      try { reader.cancel(); } catch {}
+      try { reader.cancel(); } catch { }
     }
 
     if (gotRateLimited) {

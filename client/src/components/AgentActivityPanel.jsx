@@ -8,6 +8,7 @@ function getResultSummary(event) {
     if (Array.isArray(parsed?.results)) return `${parsed.results.length} results found`;
     if (parsed?.destination) return `Itinerary built for ${parsed.destination}`;
     if (parsed?.title) return `Report: "${parsed.title.slice(0, 40)}"`;
+    if (parsed?.output) return `Output: ${parsed.output.split('\n')[0].slice(0, 50)}...`;
     if (Array.isArray(parsed)) return `${parsed.length} records`;
     return 'Done';
   } catch {
