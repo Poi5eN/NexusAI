@@ -23,4 +23,7 @@ app.route('/api', router);
 export default {
   port: Number(process.env.PORT ?? 3001),
   fetch: app.fetch,
+  // Disable idle timeout so long-running SSE streams (LLM + tool calls)
+  // are never cut short by Bun's default 10-second timeout.
+  idleTimeout: 0,
 };

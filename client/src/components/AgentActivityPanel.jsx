@@ -1,6 +1,20 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import * as LucideIcons from 'lucide-react';
 
+function getResultSummary(event) {
+  if (!event.result) return 'Done';
+  try {
+    const parsed = typeof event.result === 'string' ? JSON.parse(event.result) : event.result;
+    if (Array.isArray(parsed?.results)) return `${parsed.results.length} results found`;
+    if (parsed?.destination) return `Itinerary built for ${parsed.destination}`;
+    if (parsed?.title) return `Report: "${parsed.title.slice(0, 40)}"`;
+    if (Array.isArray(parsed)) return `${parsed.length} records`;
+    return 'Done';
+  } catch {
+    return 'Done';
+  }
+}
+
 export default function AgentActivityPanel({ activity, personaColor, isDark }) {
   if (!activity || activity.length === 0) return null;
 
@@ -41,9 +55,9 @@ export default function AgentActivityPanel({ activity, personaColor, isDark }) {
                 </span>
               </div>
               <p className={`text-xs font-medium truncate max-w-[300px] md:max-w-md ${isDark ? 'text-white/60' : 'text-black/80'}`}>
-                {event.status === 'running' 
-                  ? `Executing search for "${event.input.query}"...` 
-                  : `Retrieved ${JSON.parse(event.result || '{"results":[]}').results?.length || 0} results`}
+                {event.status === 'running'
+                  ? `${event.tool.replace(/_/g, ' ')}${event.input?.query ? `: "${event.input.query}"` : '...'}`
+                  : getResultSummary(event)}
               </p>
             </div>
           </motion.div>

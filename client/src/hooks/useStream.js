@@ -12,14 +12,12 @@ export function useStream(personaId) {
   const [activity, setActivity] = useState([]); // Track tool execution events
 
   const sendMessage = useCallback(async (userContent) => {
-    const userMessage = { role: 'user', content: userContent };
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
+    const userMsg = { role: 'user', content: userContent };
+    
+    // Reset state for new stream
     setIsStreaming(true);
     setActivity([]);
-
-    // Placeholder for the assistant reply
-    setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+    setMessages([userMsg, { role: 'assistant', content: '' }]);
 
     try {
       const res = await fetch(`${API_URL}/api/chat`, {
@@ -28,7 +26,10 @@ export function useStream(personaId) {
           'Content-Type': 'application/json',
           'X-Persona': personaId,
         },
-        body: JSON.stringify({ messages: updatedMessages, stream: true }),
+        body: JSON.stringify({ 
+          messages: [userMsg], 
+          stream: true 
+        }),
       });
 
       if (!res.body) throw new Error('No response stream');
@@ -61,6 +62,19 @@ export function useStream(personaId) {
                     return [
                       ...prev.slice(0, -1),
                       { ...last, content: last.content + event.content }
+                    ];
+                  }
+                  return prev;
+                });
+                break;
+
+              case 'token_reset':
+                setMessages((prev) => {
+                  const last = prev[prev.length - 1];
+                  if (last && last.role === 'assistant') {
+                    return [
+                      ...prev.slice(0, -1),
+                      { ...last, content: '' }
                     ];
                   }
                   return prev;
@@ -115,16 +129,12 @@ export function useStream(personaId) {
       setMessages((prev) => {
         const copy = [...prev];
         const last = copy[copy.length - 1];
+        // Use a plain marker — no markdown so the UI can display cleanly
+        const errorMsg = `⚠️ ${displayError}`;
         if (last && last.role === 'assistant' && !last.content) {
-          copy[copy.length - 1] = {
-            role: 'assistant',
-            content: `⚠️ **API Error:** ${displayError}`,
-          };
+          copy[copy.length - 1] = { role: 'assistant', content: errorMsg };
         } else {
-          copy.push({
-            role: 'assistant',
-            content: `⚠️ **API Error:** ${displayError}`,
-          });
+          copy.push({ role: 'assistant', content: errorMsg });
         }
         return copy;
       });

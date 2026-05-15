@@ -5,7 +5,6 @@
  */
 
 import { Hono } from 'hono';
-import { stream } from 'hono/streaming';
 import { streamChat, chat, type ChatMessage } from './services/openrouter.ts';
 import { generateImage } from './services/huggingface.ts';
 import { webSearch } from './services/websearch.ts';
@@ -16,22 +15,26 @@ import { memoryService } from './services/memory.ts';
 
 const PERSONA_MODELS: Record<string, string> = {
   travel:   process.env.MODEL_TRAVEL        ?? 'google/gemini-2.0-flash-exp:free',
-  chatbot:  process.env.MODEL_CHATBOT       ?? 'openai/gpt-oss-120b:free',
-  support:  process.env.MODEL_SUPPORT       ?? 'arcee-ai/trinity-large-thinking:free',
+  chatbot:  process.env.MODEL_CHATBOT       ?? 'google/gemini-2.0-flash-exp:free',
+  support:  process.env.MODEL_SUPPORT       ?? 'deepseek/deepseek-chat-v3-0324:free',
   research: process.env.MODEL_RESEARCH      ?? 'google/gemini-2.0-flash-exp:free',
   image:    process.env.MODEL_IMAGE_PROMPT  ?? 'mistralai/mistral-7b-instruct:free',
   tutor:    process.env.MODEL_TUTOR         ?? 'google/gemini-2.0-flash-exp:free',
-  medical:  process.env.MODEL_MEDICAL       ?? 'google/gemini-2.0-flash-exp:free',
-  legal:    process.env.MODEL_LEGAL         ?? 'google/gemini-2.0-flash-exp:free',
+  medical:  process.env.MODEL_MEDICAL       ?? 'deepseek/deepseek-chat-v3-0324:free',
+  legal:    process.env.MODEL_LEGAL         ?? 'deepseek/deepseek-chat-v3-0324:free',
   movies:   process.env.MODEL_MOVIES        ?? 'mistralai/mistral-7b-instruct:free',
 };
 
+// Stateless workflow personas — skip memory injection to save tokens
+const STATELESS_PERSONAS = new Set(['travel', 'research', 'image']);
+
 const SYSTEM_PROMPTS: Record<string, string> = {
-  travel: `You are a warm, expert travel planner. You help users plan trips with detailed 
-day-by-day itineraries, local tips, and practical advice. Always ask for dates, budget, 
-and interests before planning. ONCE YOU HAVE ENOUGH INFO, ALWAYS use the 'build_itinerary' tool
-to generate a structured itinerary for the user. Before building it, use 'web_search' to 
-ensure the details (weather, local events, attractions) are up-to-date.`,
+  travel: `You are a world-class, agentic travel architect. Your goal is to build hyper-personalized, data-driven itineraries. 
+When a user asks for a trip, you MUST follow this protocol strictly:
+1. DATA GATHERING: Use 'web_search' to gather REAL-TIME data: current weather for the dates, upcoming festivals/events, and local transportation alerts. You can run multiple searches in parallel.
+2. SYNTHESIS: Process the gathered data to create a unique plan.
+3. VISUALIZATION: You MUST use the 'build_itinerary' tool to generate the structured visual plan. This is the MOST IMPORTANT STEP.
+4. FINAL RESPONSE: Once 'build_itinerary' is called, give a brief, warm summary. DO NOT repeat all the raw search data in your text response — keep it clean and let the visual card do the talking.`,
 
   chatbot: `You are Nexus, a genius friend — brilliant, warm, and direct. You give real answers, 
 not corporate fluff. You explain complex topics simply, you're honest about what you don't know, 
@@ -94,10 +97,12 @@ router.post('/chat', async (c) => {
   const model = PERSONA_MODELS[persona] ?? PERSONA_MODELS['chatbot']!;
   const systemPrompt = SYSTEM_PROMPTS[persona] ?? SYSTEM_PROMPTS['chatbot']!;
 
-  // 1. Fetch long-term memory for this persona
-  const history = await memoryService.getContext("default_user", persona);
-  const memoryContext = history.length > 0 
-    ? `\n\n[PERSISTENT MEMORY]\nThe following are snippets from previous conversations. Use them for context if relevant:\n${history.map(m => `${m.role}: ${m.content}`).join('\n')}`
+  // 1. Fetch recent memory (skip stateless workflow personas to save tokens)
+  const history = STATELESS_PERSONAS.has(persona)
+    ? []
+    : await memoryService.getContext("default_user", persona, 3);
+  const memoryContext = history.length > 0
+    ? `\n\n[RECENT MEMORY]\n${history.map(m => `${m.role}: ${m.content.slice(0, 150)}`).join('\n')}`
     : '';
 
   // 2. Prepend system prompt + optional RAG context + memory
@@ -108,28 +113,63 @@ router.post('/chat', async (c) => {
 
   try {
     if (body.stream) {
-      return stream(c, async (s) => {
-        const loop = agentLoop(persona, messages, model);
-        let assistantContent = "";
-        
-        for await (const event of loop) {
-          if (event.type === 'token' && event.content) assistantContent += event.content;
-          await s.write(`data: ${JSON.stringify(event)}\n\n`);
-        }
+      const encoder = new TextEncoder();
+      const readable = new ReadableStream({
+        async start(controller) {
+          let closed = false;
 
-        // 3. Store result in memory
-        const lastUserMsg = body.messages[body.messages.length - 1]?.content;
-        if (lastUserMsg) await memoryService.store("default_user", persona, "user", lastUserMsg);
-        if (assistantContent) await memoryService.store("default_user", persona, "assistant", assistantContent);
+          const write = (event: object) => {
+            if (closed) return; // client already disconnected
+            try {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+            } catch {
+              closed = true; // mark closed so we stop writing
+            }
+          };
+
+          let assistantContent = '';
+          try {
+            for await (const event of agentLoop(persona, messages, model)) {
+              if (closed) break; // client disconnected — stop the loop
+              if (event.type === 'token' && event.content) assistantContent += event.content;
+              write(event);
+            }
+            // Store in memory after successful run
+            if (!STATELESS_PERSONAS.has(persona)) {
+              const lastUserMsg = body.messages[body.messages.length - 1]?.content;
+              if (lastUserMsg) await memoryService.store("default_user", persona, "user", lastUserMsg.slice(0, 300));
+              if (assistantContent) await memoryService.store("default_user", persona, "assistant", assistantContent.slice(0, 300));
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error('[STREAM] Uncaught error in agentLoop:', msg);
+            write({ type: 'error', content: msg });
+          } finally {
+            if (!closed) {
+              try { controller.close(); } catch { /* already closed */ }
+            }
+          }
+        }
+      });
+
+      return new Response(readable, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'X-Accel-Buffering': 'no',
+          'Access-Control-Allow-Origin': '*',
+        },
       });
     }
 
     const content = await chat({ model, messages });
     
-    // Store in memory for non-stream too
-    const lastUserMsg = body.messages[body.messages.length - 1]?.content;
-    if (lastUserMsg) await memoryService.store("default_user", persona, "user", lastUserMsg);
-    if (content) await memoryService.store("default_user", persona, "assistant", content);
+    if (!STATELESS_PERSONAS.has(persona)) {
+      const lastUserMsg = body.messages[body.messages.length - 1]?.content;
+      if (lastUserMsg) await memoryService.store("default_user", persona, "user", lastUserMsg.slice(0, 300));
+      if (content) await memoryService.store("default_user", persona, "assistant", content.slice(0, 300));
+    }
 
     return c.json({ content, persona, model });
   } catch (err) {

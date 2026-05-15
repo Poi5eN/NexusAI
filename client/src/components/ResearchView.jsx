@@ -15,7 +15,10 @@ export default function ResearchView() {
 
   // Find the last research report result
   const lastReportEvent = [...activity].reverse().find(a => a.tool === 'generate_research_report' && a.status === 'done');
-  const structuredReport = lastReportEvent?.result ? JSON.parse(lastReportEvent.result) : null;
+  let structuredReport = null;
+  try {
+    structuredReport = lastReportEvent?.result ? JSON.parse(lastReportEvent.result) : null;
+  } catch { /* malformed tool result — fall through to text view */ }
 
   // Find the last message to check for errors
   const lastMessage = messages[messages.length - 1];

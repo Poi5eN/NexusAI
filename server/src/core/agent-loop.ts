@@ -1,6 +1,20 @@
 import { TOOLS_BY_PERSONA } from '../tools/registry.ts';
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+// Models confirmed to support tool/function calling on OpenRouter free tier
+const TOOL_CAPABLE_MODELS = [
+  'google/gemini-2.0-flash-exp:free',
+  'deepseek/deepseek-chat-v3-0324:free',
+  'meta-llama/llama-3.1-8b-instruct:free',
+];
+
+// Extended pool for text-only personas (no tool calls)
+const TEXT_ONLY_MODELS = [
+  ...TOOL_CAPABLE_MODELS,
+  'mistralai/mistral-7b-instruct:free',
+  'microsoft/phi-3-mini-128k-instruct:free',
+];
+
+const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 
 export interface AgentEvent {
   type: 'token' | 'tool_start' | 'tool_result' | 'error' | 'done';
@@ -10,190 +24,323 @@ export interface AgentEvent {
   result?: any;
 }
 
+function getApiKey(): string {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error('OPENROUTER_API_KEY is not set');
+  return key;
+}
+
+async function callLLM(model: string, messages: any[], tools: any[]): Promise<Response> {
+  // --- Local Ollama Development Mode ---
+  if (model === 'ollama' || (process.env.NODE_ENV === 'development' && process.env.OLLAMA_URL)) {
+    const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434/api/chat';
+    const ollamaModel = process.env.OLLAMA_MODEL || 'mistral';
+    
+    try {
+      const ollamaRes = await fetch(ollamaUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: ollamaModel,
+          messages: messages.map(m => ({
+            role: m.role,
+            content: m.content,
+            tool_calls: m.tool_calls
+          })),
+          stream: true,
+          tools: tools.length > 0 ? tools.map(t => ({ type: 'function', function: t.schema })) : undefined
+        }),
+      });
+      if (ollamaRes.ok) return ollamaRes;
+      
+      // If we specifically requested ollama and it failed, throw so the loop knows
+      if (model === 'ollama') throw new Error(`Ollama returned ${ollamaRes.status}`);
+    } catch (e) {
+      if (model === 'ollama') throw e; // Rethrow to trigger fallback in the loop
+      console.warn('[AGENT] Ollama fallback triggered:', e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  // --- Production / OpenRouter Fallback ---
+  const body: any = {
+    model,
+    messages,
+    stream: true,
+    temperature: 0.7,
+  };
+  if (tools.length > 0) {
+    body.tools = tools.map(t => ({ type: 'function', function: t.schema }));
+    body.tool_choice = 'auto';
+  }
+
+  return fetch(`${OPENROUTER_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${getApiKey()}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://nexus.dev',
+      'X-Title': 'NEXUS Agent Engine',
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 /**
  * Agentic Loop implementation.
  * Drives the LLM through multiple reasoning/tool-execution steps.
+ * Includes automatic model rotation when 429 rate limits are hit.
  */
 export async function* agentLoop(
-  personaId: string, 
-  messages: any[], 
-  model: string
+  personaId: string,
+  messages: any[],
+  preferredModel: string
 ): AsyncGenerator<AgentEvent> {
+  const isDev = process.env.NODE_ENV === 'development';
+  console.log(`\n[SYSTEM] --- Agent Session Start ---`);
+  console.log(`[SYSTEM] Environment: ${process.env.NODE_ENV || 'production'}`);
+  console.log(`[SYSTEM] Persona: ${personaId}`);
+  console.log(`[SYSTEM] Preferred Model: ${preferredModel}`);
+  console.log(`[SYSTEM] ---------------------------\n`);
+
   const tools = TOOLS_BY_PERSONA[personaId] || [];
   let loopCount = 0;
-  const maxLoops = 5;
+  const maxLoops = 4; // keep low to conserve free-tier tokens
+
+  // Use only tool-capable fallbacks when tools are active; broader pool otherwise
+  const fallbackPool = tools.length > 0
+    ? TOOL_CAPABLE_MODELS.filter(m => m !== preferredModel)
+    : TEXT_ONLY_MODELS.filter(m => m !== preferredModel);
+  const modelsToTry = [preferredModel, ...fallbackPool];
+  let currentModelIndex = 0;
 
   while (loopCount < maxLoops) {
     loopCount++;
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://nexus.dev',
-        'X-Title': 'NEXUS Agent Engine',
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        tools: tools.length > 0 ? tools.map(t => ({
-          type: "function",
-          function: t.schema
-        })) : undefined,
-        tool_choice: tools.length > 0 ? "auto" : undefined,
-        stream: true,
-      }),
-    });
+    // --- Try models until one succeeds ---
+    let response: Response | null = null;
 
-    if (!response.ok) {
-      const error = await response.text();
-      yield { type: 'error', content: `LLM Error: ${error}` };
+    // DEV MODE: Priority attempt with local Ollama
+    if (isDev && process.env.OLLAMA_URL) {
+      const model = process.env.OLLAMA_MODEL || 'mistral';
+      console.log(`[AGENT] Iteration ${loopCount}: Dev Mode priority attempt with local Ollama (${model})...`);
+      try {
+        const r = await callLLM('ollama', messages, tools);
+        if (r.ok) {
+          response = r;
+          console.log(`[AGENT] Connected to local Ollama successfully.`);
+        } else {
+          console.warn(`[AGENT] Ollama request failed (Status: ${r.status}). Falling back to cloud pool.`);
+        }
+      } catch (e) {
+        console.warn(`[AGENT] Local Ollama not reachable on ${process.env.OLLAMA_URL}. Falling back to cloud pool.`);
+      }
+    }
+
+    if (!response) {
+      while (currentModelIndex < modelsToTry.length) {
+        const model = modelsToTry[currentModelIndex];
+        if (!model) {
+          currentModelIndex++;
+          continue;
+        }
+        console.log(`[AGENT] Iteration ${loopCount}: Requesting ${model} from OpenRouter...`);
+        try {
+          const r = await callLLM(model, messages, tools);
+          if (r.status === 429) {
+            console.warn(`[AGENT] HTTP 429 on ${model}. Rotating...`);
+            currentModelIndex++;
+            continue;
+          }
+          if (!r.ok) {
+            const txt = await r.text();
+            console.error(`[AGENT] Error response from ${model}:`, txt);
+            yield { type: 'error', content: `LLM Error: ${txt}` };
+            return;
+          }
+          response = r;
+          console.log(`[AGENT] Connected to ${model} successfully.`);
+          break;
+        } catch (e) {
+          console.error(`[AGENT] Network error on ${model}:`, e);
+          currentModelIndex++;
+          continue;
+        }
+      }
+    }
+
+    if (!response) {
+      yield { type: 'error', content: 'All LLM models are rate-limited. Please wait a few minutes and try again.' };
       return;
     }
 
+    // --- Stream reading ---
     const reader = response.body?.getReader();
-    if (!reader) return;
+    if (!reader) {
+      yield { type: 'error', content: 'No response body from LLM.' };
+      return;
+    }
 
     const decoder = new TextDecoder();
     let toolCalls: any[] = [];
-    let assistantMessageContent = "";
-    let buffer = "";
+    let assistantMessageContent = '';
+    let buffer = '';
+    let gotRateLimited = false;
 
-    const processChunk = (payload: string) => {
-      if (!payload || payload === '[DONE]') return null;
-      try {
-        const chunk = JSON.parse(payload);
-        return chunk.choices?.[0]?.delta;
-      } catch (e) {
-        return null;
-      }
-    };
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
 
-      for (const line of lines) {
-        const delta = processChunk(line.replace(/^data: /, '').trim());
-        if (!delta) continue;
+          let delta: any = null;
+          let toolCallsInChunk: any[] = [];
+          let isDone = false;
 
-        if (delta.tool_calls) {
-          for (const tc of delta.tool_calls) {
-            if (tc.index !== undefined) {
-              if (!toolCalls[tc.index]) {
-                toolCalls[tc.index] = { id: tc.id, function: { name: "", arguments: "" } };
+          // --- 1. Parse OpenRouter/OpenAI (SSE) ---
+          if (trimmed.startsWith('data: ')) {
+            const payload = trimmed.slice(6).trim();
+            if (payload === '[DONE]') {
+              isDone = true;
+            } else {
+              try {
+                const parsed = JSON.parse(payload);
+                if (parsed?.error) {
+                  const msg: string = parsed.error?.message ?? String(parsed.error);
+                  if (msg.toLowerCase().includes('rate limit') || parsed.error?.code === 429) {
+                    gotRateLimited = true;
+                    break;
+                  }
+                  yield { type: 'error', content: `LLM Error: ${msg}` };
+                  return;
+                }
+                delta = parsed?.choices?.[0]?.delta;
+                toolCallsInChunk = delta?.tool_calls || [];
+              } catch { continue; }
+            }
+          } 
+          // --- 2. Parse Ollama (NDJSON) ---
+          else {
+            try {
+              const chunk = JSON.parse(trimmed);
+              if (chunk.message) {
+                delta = { content: chunk.message.content };
+                toolCallsInChunk = chunk.message.tool_calls || [];
               }
-              if (tc.function?.name) toolCalls[tc.index].function.name += tc.function.name;
-              if (tc.function?.arguments) toolCalls[tc.index].function.arguments += tc.function.arguments;
+              if (chunk.done) isDone = true;
+            } catch { continue; }
+          }
+
+          if (isDone) break;
+          if (gotRateLimited) break;
+
+          if (delta) {
+            if (delta.content) {
+              assistantMessageContent += delta.content;
+              yield { type: 'token', content: delta.content };
+            }
+
+            if (toolCallsInChunk.length > 0) {
+              for (const tc of toolCallsInChunk) {
+                const idx = tc.index ?? 0;
+                if (!toolCalls[idx]) {
+                  toolCalls[idx] = { id: tc.id ?? `tc_${idx}`, function: { name: '', arguments: '' } };
+                }
+                if (tc.id) toolCalls[idx].id = tc.id;
+                if (tc.function?.name) toolCalls[idx].function.name += tc.function.name;
+                if (tc.function?.arguments) toolCalls[idx].function.arguments += tc.function.arguments;
+              }
             }
           }
         }
-        if (delta.content) {
-          assistantMessageContent += delta.content;
-          yield { type: 'token', content: delta.content };
-        }
+
+        if (gotRateLimited) break;
       }
+    } catch (streamErr) {
+      // Network drop mid-stream — treat as rate limit and rotate
+      console.error('[AGENT] Stream read error:', streamErr);
+      gotRateLimited = true;
+    } finally {
+      try { reader.cancel(); } catch {}
     }
 
-    // Final buffer check
-    if (buffer) {
-      const delta = processChunk(buffer.replace(/^data: /, '').trim());
-      if (delta) {
-        if (delta.tool_calls) {
-          for (const tc of delta.tool_calls) {
-            if (tc.index !== undefined) {
-              if (!toolCalls[tc.index]) {
-                toolCalls[tc.index] = { id: tc.id, function: { name: "", arguments: "" } };
-              }
-              if (tc.function?.name) toolCalls[tc.index].function.name += tc.function.name;
-              if (tc.function?.arguments) toolCalls[tc.index].function.arguments += tc.function.arguments;
-            }
-          }
-        }
-        if (delta.content) {
-          assistantMessageContent += delta.content;
-          yield { type: 'token', content: delta.content };
-        }
+    if (gotRateLimited) {
+      currentModelIndex++;
+      if (currentModelIndex >= modelsToTry.length) {
+        yield { type: 'error', content: 'All LLM models are rate-limited. Please wait a few minutes and try again.' };
+        return;
       }
+      // Reset client-side partial tokens
+      yield { type: 'token_reset' as any };
+
+      // Reset loop state for retry with new model
+      toolCalls = [];
+      assistantMessageContent = '';
+      loopCount--; // don't count this as a real loop
+      continue;
     }
 
-    // Process finished tool calls
+    // --- Process tool calls ---
     if (toolCalls.length > 0) {
-      const finalAssistantMessage = {
-        role: "assistant",
+      messages.push({
+        role: 'assistant',
         content: assistantMessageContent || null,
         tool_calls: toolCalls.map(tc => ({
           id: tc.id,
-          type: "function",
-          function: tc.function
-        }))
-      };
-      messages.push(finalAssistantMessage);
-
-      // Prepare parallel execution
-      const toolPromises = toolCalls.map(async (tc) => {
-        const toolName = tc.function.name;
-        let toolArgs = {};
-        try {
-          toolArgs = JSON.parse(tc.function.arguments || "{}");
-        } catch (e) {
-          console.error(`Error parsing tool arguments for ${toolName}:`, e);
-        }
-        
-        const toolDef = tools.find(t => t.schema.name === toolName);
-        if (!toolDef) {
-           return { id: tc.id, name: toolName, error: "Tool not found" };
-        }
-
-        try {
-          const result = await toolDef.execute(toolArgs);
-          return { id: tc.id, name: toolName, result, input: toolArgs };
-        } catch (err) {
-          const errorMsg = err instanceof Error ? err.message : String(err);
-          return { id: tc.id, name: toolName, error: errorMsg, input: toolArgs };
-        }
+          type: 'function',
+          function: tc.function,
+        })),
       });
 
-      // Yield "start" for all tools before executing
+      // Emit start events first
       for (const tc of toolCalls) {
-        let toolArgs = {};
-        try { toolArgs = JSON.parse(tc.function.arguments || "{}"); } catch(e) {}
+        console.log(`[AGENT] Executing tool: ${tc.function.name}`);
+        let toolArgs: any = {};
+        try { toolArgs = JSON.parse(tc.function.arguments || '{}'); } catch { /**/ }
         yield { type: 'tool_start', tool: tc.function.name, input: toolArgs };
       }
 
-      const results = await Promise.all(toolPromises);
+      // Execute tools in parallel
+      const results = await Promise.all(
+        toolCalls.map(async (tc) => {
+          const toolName = tc.function.name;
+          let toolArgs: any = {};
+          try { toolArgs = JSON.parse(tc.function.arguments || '{}'); } catch { /**/ }
 
-      // Yield results and push to messages
+          const toolDef = tools.find(t => t.schema.name === toolName);
+          if (!toolDef) return { id: tc.id, name: toolName, error: 'Tool not found', input: toolArgs };
+
+          try {
+            const result = await toolDef.execute(toolArgs);
+            console.log(`[AGENT] Tool ${toolName} finished with ${result.length} chars of data.`);
+            return { id: tc.id, name: toolName, result, input: toolArgs };
+          } catch (err) {
+            console.error(`[AGENT] Tool ${toolName} failed:`, err);
+            return { id: tc.id, name: toolName, error: err instanceof Error ? err.message : String(err), input: toolArgs };
+          }
+        })
+      );
+
       for (const res of results) {
-        if ('error' in res) {
-          messages.push({
-            role: "tool",
-            tool_call_id: res.id,
-            name: res.name,
-            content: `Error: ${res.error}`
-          });
+        if ('error' in res && res.error) {
+          messages.push({ role: 'tool', tool_call_id: res.id, name: res.name, content: `Error: ${res.error}` });
         } else {
           yield { type: 'tool_result', tool: res.name, result: res.result };
-          messages.push({
-            role: "tool",
-            tool_call_id: res.id,
-            name: res.name,
-            content: res.result
-          });
+          messages.push({ role: 'tool', tool_call_id: res.id, name: res.name, content: res.result });
         }
       }
 
-      // Loop again to give LLM the tool results
-      continue;
-    } else {
-      // No more tool calls, we're done
-      yield { type: 'done' };
-      break;
+      continue; // Give tool results back to LLM
     }
+
+    // --- No tool calls — we're done ---
+    yield { type: 'done' };
+    break;
   }
 }

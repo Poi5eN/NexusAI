@@ -22,6 +22,9 @@ export interface ImageOptions {
  * Generates an image and returns it as a base64 data URL string.
  * e.g. "data:image/jpeg;base64,/9j/4AAQ..."
  */
+/**
+ * Generates an image and returns it as a base64 data URL string.
+ */
 export async function generateImage(options: ImageOptions): Promise<string> {
   const model = options.model ?? process.env.HF_IMAGE_MODEL ?? 'black-forest-labs/FLUX.1-schnell';
 
@@ -48,4 +51,33 @@ export async function generateImage(options: ImageOptions): Promise<string> {
   const buffer = await res.arrayBuffer();
   const base64 = Buffer.from(buffer).toString('base64');
   return `data:image/jpeg;base64,${base64}`;
+}
+
+/**
+ * Text generation fallback using Hugging Face Inference API.
+ */
+export async function chatHF(messages: { role: string, content: string }[]): Promise<string> {
+  const model = 'meta-llama/Meta-Llama-3-8B-Instruct';
+  
+  const prompt = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n') + '\nASSISTANT:';
+
+  const res = await fetch(`${HF_BASE}/${model}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${getApiKey()}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: prompt,
+      parameters: { max_new_tokens: 1000, return_full_text: false },
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`HF Chat Error ${res.status}: ${err}`);
+  }
+
+  const data = await res.json() as { generated_text: string }[];
+  return data[0]?.generated_text ?? '';
 }

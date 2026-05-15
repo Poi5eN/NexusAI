@@ -30,7 +30,7 @@ export default function ItineraryCard({ itinerary, isDark }) {
 
       {/* Timeline */}
       <div className="p-6 md:p-8 space-y-10">
-        {itinerary.days?.map((day, idx) => (
+        {Array.isArray(itinerary.days) && itinerary.days.map((day, idx) => (
           <div key={idx} className="relative pl-8 md:pl-10 border-l-2 border-dashed border-blue-500/20 last:border-0 pb-2">
             <div className="absolute -left-3 top-0 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] font-black text-white shadow-lg shadow-blue-500/40">
               {day.day}
