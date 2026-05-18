@@ -80,6 +80,57 @@ export default function ChatView() {
   const [marketData, setMarketData] = useState([]);
   const [isMarketOpen, setIsMarketOpen] = useState(false);
 
+  const [isCopied, setIsCopied] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleShare = () => {
+    if (messages.length === 0) return;
+    const formattedChat = messages
+      .map((msg) => `### ${msg.role === 'user' ? 'User' : activePersona.label}\n\n${msg.content}\n`)
+      .join('\n');
+    navigator.clipboard.writeText(formattedChat);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  const triggerUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('http://localhost:3001/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const data = await response.json();
+      if (data.text) {
+        sendMessage(
+          `I have uploaded a document named "${file.name}". Here is the content of the document:\n\n---\n${data.text}\n---\n\nBased on this document, please first provide a brief summary of it and then generate a list of 3-4 suggested questions that I can ask you about this document.`
+        );
+      }
+    } catch (err) {
+      console.error('Upload failed:', err);
+      alert('Failed to upload and parse the document. Please try a different file.');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const IconComponent = LucideIcons[activePersona.icon] || LucideIcons.Bot;
 
   // Real-time market summary for Broker persona
@@ -145,13 +196,33 @@ export default function ChatView() {
             <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mt-0.5 transition-colors ${isDark ? 'text-white/40' : 'text-black/40'}`}>{activePersona.description}</p>
           </div>
         </div>
-        <button
-          onClick={clearMessages}
-          className={`group text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-all border flex items-center gap-2 ${isDark ? 'bg-white/5 border-white/5 text-white/50 hover:text-white hover:bg-white/10' : 'bg-black/5 border-black/5 text-black/50 hover:bg-black/10 hover:text-black'}`}
-        >
-          <LucideIcons.Trash2 className="w-3.5 h-3.5 transition-transform group-hover:rotate-12" />
-          Clear Chat
-        </button>
+        <div className="flex items-center gap-2">
+          {messages.length > 0 && activePersona.id === 'chatbot' && (
+            <button
+              onClick={handleShare}
+              className={`group text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-all border flex items-center gap-2 ${isDark ? 'bg-white/5 border-white/5 text-white/50 hover:text-white hover:bg-white/10' : 'bg-black/5 border-black/5 text-black/50 hover:bg-black/10 hover:text-black'}`}
+            >
+              {isCopied ? (
+                <>
+                  <LucideIcons.Check className="w-3.5 h-3.5 text-emerald-400" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <LucideIcons.Share2 className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
+                  Share Chat
+                </>
+              )}
+            </button>
+          )}
+          <button
+            onClick={clearMessages}
+            className={`group text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-all border flex items-center gap-2 ${isDark ? 'bg-white/5 border-white/5 text-white/50 hover:text-white hover:bg-white/10' : 'bg-black/5 border-black/5 text-black/50 hover:bg-black/10 hover:text-black'}`}
+          >
+            <LucideIcons.Trash2 className="w-3.5 h-3.5 transition-transform group-hover:rotate-12" />
+            Clear Chat
+          </button>
+        </div>
       </div>
 
       {/* Messages Area */}
@@ -385,13 +456,36 @@ export default function ChatView() {
       {/* Input Area */}
       <div className={`p-4 md:p-8 backdrop-blur-3xl transition-colors duration-700 ${isDark ? 'bg-gradient-to-t from-black to-transparent border-t border-white/5' : 'bg-gradient-to-t from-white to-transparent border-t border-black/5'}`}>
         <form onSubmit={handleSubmit} className="relative flex items-center max-w-5xl mx-auto group">
+          {activePersona.id === 'chatbot' && (
+            <>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept=".txt,.pdf,.csv,.md,.json"
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={triggerUpload}
+                disabled={isStreaming || isUploading}
+                className={`absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all disabled:opacity-50 hover:bg-white/5 active:scale-95 text-white/40 hover:text-white z-10`}
+              >
+                {isUploading ? (
+                  <LucideIcons.Loader2 className="w-5 h-5 animate-spin" style={{ color: activePersona.color }} />
+                ) : (
+                  <LucideIcons.AtSign className="w-5 h-5" />
+                )}
+              </button>
+            </>
+          )}
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={isStreaming}
             placeholder={`Message ${activePersona.label}...`}
-            className={`w-full border rounded-[28px] py-5 pl-8 pr-20 focus:outline-none transition-all disabled:opacity-50 shadow-2xl text-base ${isDark ? 'bg-[#151517] border-white/10 text-white/90 placeholder:text-white/20 focus:ring-2 focus:ring-[var(--persona-color)]/30' : 'bg-white border-black/10 text-black/90 placeholder:text-black/30 focus:ring-2 focus:ring-[var(--persona-color)]/20'}`}
+            className={`w-full border rounded-[28px] py-5 pr-20 focus:outline-none transition-all disabled:opacity-50 shadow-2xl text-base ${activePersona.id === 'chatbot' ? 'pl-16' : 'pl-8'} ${isDark ? 'bg-[#151517] border-white/10 text-white/90 placeholder:text-white/20 focus:ring-2 focus:ring-[var(--persona-color)]/30' : 'bg-white border-black/10 text-black/90 placeholder:text-black/30 focus:ring-2 focus:ring-[var(--persona-color)]/20'}`}
           />
           <button
             type="submit"

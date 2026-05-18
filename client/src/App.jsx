@@ -44,7 +44,7 @@ export default function App() {
   };
 
   return (
-    <div 
+    <div
       data-theme={theme}
       className={`transition-colors duration-700 ${isDark ? 'bg-[#020617] text-white' : 'bg-[#fdfdfc] text-[#1a1a1a]'}`}
     >
@@ -52,11 +52,11 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/team" element={<TeamPage />} />
-        
+
         {/* Dashboard Route */}
         <Route path="/app" element={
           <div className={`flex flex-col md:flex-row gap-3 lg:gap-4 w-full h-screen overflow-hidden md:p-3 lg:p-4 transition-colors duration-700 ${isDark ? 'bg-[#020617]' : 'bg-[#f8f8f7]'}`}>
-            
+
             {/* Mobile Header */}
             <div className={`md:hidden flex items-center justify-between p-4 z-[60] shrink-0 border-b transition-colors ${isDark ? 'bg-black/40 backdrop-blur-xl border-white/5' : 'bg-white border-black/5'}`}>
               <div className="flex items-center gap-2">
@@ -65,7 +65,7 @@ export default function App() {
                 </div>
                 <span className={`font-black text-lg tracking-tighter italic uppercase transition-colors ${isDark ? 'text-white' : 'text-black'}`}>Nexus</span>
               </div>
-              <button 
+              <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className={`p-2 rounded-xl border transition-colors ${isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-black/5 border-black/5 text-black'}`}
               >
@@ -79,14 +79,14 @@ export default function App() {
               ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
               md:flex md:h-full shrink-0 ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64'}
             `}>
-              <div 
-                className="absolute inset-0 bg-black/80 backdrop-blur-sm md:hidden" 
+              <div
+                className="absolute inset-0 bg-black/80 backdrop-blur-sm md:hidden"
                 onClick={() => setIsMobileMenuOpen(false)}
               />
-              
+
               <div className="relative w-full h-full flex flex-col">
-                <Sidebar 
-                  onPersonaSelect={() => setIsMobileMenuOpen(false)} 
+                <Sidebar
+                  onPersonaSelect={() => setIsMobileMenuOpen(false)}
                   onOpenSettings={() => setIsSettingsOpen(true)}
                 />
               </div>

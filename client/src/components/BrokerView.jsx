@@ -172,7 +172,7 @@ export default function BrokerView() {
                   <span className={`text-[10px] font-bold ${isDark ? 'text-white/60' : 'text-black/60'}`}>{m.symbol}</span>
                   <div className="text-right">
                     <div className={`text-xs font-mono font-bold ${isDark ? 'text-white' : 'text-black'}`}>{m.price}</div>
-                    <div className={`text-[9px] font-bold text-emerald-500`}>{m.percent}%</div>
+                    <div className={`text-[9px] font-bold ${m.percent.startsWith('-') ? 'text-rose-500' : 'text-emerald-500'}`}>{m.percent}%</div>
                   </div>
                 </div>
               )) : (
@@ -186,12 +186,12 @@ export default function BrokerView() {
 
           {/* Quick Actions */}
           <div className="space-y-3">
-            <h4 className={`text-[10px] font-black uppercase tracking-[0.2em] ${isDark ? 'text-white/30' : 'text-black/30'}`}>Quick Insights</h4>
+            <h4 className={`text-[10px] font-black uppercase tracking-[0.2em] ${isDark ? 'text-white/30' : 'text-black/30'}`}>Global & Indian Insights</h4>
             <div className="grid grid-cols-1 gap-2">
               {[
                 { label: 'NVDA Analysis', prompt: 'Give me a deep dive trend analysis for NVIDIA (NVDA) stock' },
-                { label: 'Market Sentiment', prompt: 'What is the current market sentiment based on latest news?' },
-                { label: 'Trending Stocks', prompt: 'Which stocks are currently trending and why?' },
+                { label: 'RELIANCE Analysis', prompt: 'Give me a deep dive trend analysis for Reliance Industries (RELIANCE) on NSE' },
+                { label: 'Indian Market Sentiment', prompt: 'What is the current sentiment in the Indian stock market (NSE/BSE)?' },
                 { label: 'Tech Sector News', prompt: 'Fetch the latest technology sector financial news' }
               ].map((btn, i) => (
                 <button key={i} onClick={() => sendMessage(btn.prompt)} className={`w-full text-left p-3 rounded-xl border text-[10px] font-bold transition-all ${isDark ? 'bg-white/5 border-white/5 text-white/60 hover:bg-white/10 hover:text-white' : 'bg-white border-black/5 text-black/60 hover:bg-cyan-50 hover:border-cyan-200 hover:text-cyan-700'}`}>

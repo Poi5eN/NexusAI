@@ -14,7 +14,9 @@
     "@supabase/supabase-js": "^2.105.4",
     "axios": "^1.16.1",
     "dotenv": "^17.2.3",
-    "hono": "^4.12.18"
+    "hono": "^4.12.18",
+    "pdf-parse": "^2.4.5",
+    "postgres": "^3.4.9"
   },
   "scripts": {
     "dev": "bun --watch index.ts",

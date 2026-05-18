@@ -95,6 +95,46 @@ export const buildItineraryTool: ToolDefinition = {
         destination: { type: "string" },
         duration_days: { type: "number" },
         budget_level: { type: "string", enum: ["budget", "moderate", "luxury"] },
+        price_summary: {
+          type: "object",
+          properties: {
+            estimated_total: { type: "string" },
+            currency: { type: "string" }
+          }
+        },
+        hotels: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              rating: { type: "string" },
+              price_per_night: { type: "string" },
+              description: { type: "string" }
+            }
+          }
+        },
+        events: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              date: { type: "string" },
+              description: { type: "string" }
+            }
+          }
+        },
+        nearby_gems: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              description: { type: "string" }
+            }
+          }
+        },
         days: {
           type: "array",
           items: {
@@ -109,7 +149,8 @@ export const buildItineraryTool: ToolDefinition = {
                   properties: {
                     time: { type: "string" },
                     activity: { type: "string" },
-                    location: { type: "string" }
+                    location: { type: "string" },
+                    price_estimate: { type: "string" }
                   }
                 }
               }

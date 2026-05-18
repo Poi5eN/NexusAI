@@ -1,34 +1,40 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import usePersonaStore from '../stores/personaStore';
 import * as LucideIcons from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useStream } from '../hooks/useStream';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function LegalView() {
   const { activePersona, theme } = usePersonaStore();
+  const { sendMessage, messages, isStreaming, activity, clearMessages } = useStream(activePersona.id);
   const [inquiry, setInquiry] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [legalAnalysis, setLegalAnalysis] = useState(null);
+  const endRef = useRef(null);
   const isDark = theme === 'dark';
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   if (activePersona.id !== 'legal') return null;
 
-  const handleLegalCheck = (e) => {
+  const handleLegalCheck = async (e) => {
     e.preventDefault();
-    if (!inquiry.trim()) return;
-    setIsLoading(true);
-    setLegalAnalysis(null);
+    if (!inquiry.trim() || isStreaming) return;
     
-    setTimeout(() => {
-      setLegalAnalysis({
-        summary: "Based on general legal principles and public records, the following information relates to your inquiry regarding common statutes and documented precedents.",
-        clauses: [
-          { title: "Statutory Basis", content: "General statutes governing this area typically require documented intent and verifiable action." },
-          { title: "Precedent Note", content: "Similar cases in many jurisdictions emphasize the importance of disclosure and fair-use principles." },
-          { title: "Fact Note", content: "Public records indicate that regulatory bodies have recently updated their guidelines for this sector." }
-        ]
-      });
-      setIsLoading(false);
-    }, 2500);
+    const prompt = `Analyze this legal situation/concept under Indian Law, specifically referencing the Bhartiya Nyaya Samhita (BNS) where applicable:
+    
+    "${inquiry}"
+    
+    Please provide:
+    1. PLAIN ENGLISH EXPLANATION
+    2. TECHNICAL STATUTORY REFERENCE (BNS/IPC/CrPC/BNSS)
+    3. RELEVANT PRECEDENTS (if any)
+    4. DISCLAIMER (as per protocol)`;
+    
+    await sendMessage(prompt);
+    setInquiry('');
   };
 
   return (
@@ -37,7 +43,7 @@ export default function LegalView() {
       <div className={`px-6 py-2 flex items-center justify-center gap-3 border-b transition-colors ${isDark ? 'bg-slate-900 border-white/10' : 'bg-slate-50 border-slate-100'}`}>
         <LucideIcons.ShieldAlert className={`w-4 h-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
         <span className={`text-[10px] font-black uppercase tracking-[0.2em] text-center transition-colors ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-          Disclaimer: Not legal advice. Consult a certified attorney. Information is for educational purposes only.
+          Disclaimer: Not legal advice. Consult a certified advocate. Information is for educational purposes.
         </span>
       </div>
 
@@ -48,9 +54,12 @@ export default function LegalView() {
           </div>
           <div>
             <h2 className={`font-black text-2xl tracking-tight transition-colors ${isDark ? 'text-white' : 'text-black'}`}>{activePersona.label}</h2>
-            <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Legal Assistant • Fact-Based Assistance</p>
+            <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Indian Legal Intelligence • BNS 2024 Ready</p>
           </div>
         </div>
+        <button onClick={clearMessages} className={`p-3 rounded-2xl border transition-all ${isDark ? 'bg-white/5 border-white/10 text-white/40 hover:text-white' : 'bg-black/5 border-black/5 text-black/40 hover:text-black'}`}>
+          <LucideIcons.RotateCcw className="w-5 h-5" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col lg:flex-row font-sans">
@@ -63,66 +72,77 @@ export default function LegalView() {
                 required
                 value={inquiry}
                 onChange={e => setInquiry(e.target.value)}
-                placeholder="Describe a legal concept or situation for factual research..."
-                className={`w-full border rounded-2xl p-5 transition-all placeholder:text-opacity-30 outline-none focus:ring-4 focus:ring-slate-500/10 h-32 resize-none ${isDark ? 'bg-white/5 border-white/10 text-white placeholder:text-white' : 'bg-white border-black/10 text-black placeholder:text-black'}`}
+                placeholder="Describe a legal concept or situation (e.g., 'What are the bailable offenses under BNS Section 113?') ..."
+                className={`w-full border rounded-2xl p-5 transition-all placeholder:text-opacity-30 outline-none focus:ring-4 focus:ring-slate-500/10 h-32 resize-none ${isDark ? 'bg-white/5 border-white/10 text-white placeholder:text-white/20' : 'bg-white border-black/10 text-black placeholder:text-black/30'}`}
               />
             </div>
             <button 
               type="submit" 
-              disabled={isLoading}
+              disabled={isStreaming}
               className={`w-full font-black py-5 rounded-2xl transition-all shadow-xl disabled:opacity-50 flex justify-center items-center gap-3 active:scale-[0.98] ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-white shadow-slate-900/50' : 'bg-black hover:bg-slate-800 text-white shadow-black/10'}`}
             >
-              {isLoading ? <LucideIcons.Loader2 className="w-6 h-6 animate-spin" /> : <LucideIcons.FileText className="w-6 h-6" />}
-              {isLoading ? 'ANALYZING RECORDS...' : 'PERFORM FACT CHECK'}
+              {isStreaming ? <LucideIcons.Loader2 className="w-6 h-6 animate-spin" /> : <LucideIcons.FileSearch className="w-6 h-6" />}
+              {isStreaming ? 'RESEARCHING...' : 'INITIATE ANALYSIS'}
             </button>
+
+            {/* Quick References */}
+            <div className="space-y-4 pt-8 border-t border-black/5 dark:border-white/5">
+               <h4 className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-white/30' : 'text-black/30'}`}>Statutory Reference</h4>
+               <div className="grid grid-cols-1 gap-2">
+                  {[
+                    { label: 'BNS 2024 Key Changes', query: 'What are the main changes in Bhartiya Nyaya Samhita (BNS) 2024 vs IPC?' },
+                    { label: 'Bail Provisions (BNSS)', query: 'Explain the new bail provisions under Bhartiya Nagarik Suraksha Sanhita (BNSS).' },
+                    { label: 'Consumer Rights India', query: 'What are the key rights under the Consumer Protection Act, 2019?' }
+                  ].map((ref, idx) => (
+                    <button key={idx} type="button" onClick={() => sendMessage(ref.query)} className={`text-left p-4 rounded-xl border text-[11px] font-bold transition-all ${isDark ? 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10 hover:text-white' : 'bg-white border-black/5 text-black/40 hover:bg-slate-50 hover:text-slate-900'}`}>
+                      {ref.label}
+                    </button>
+                  ))}
+               </div>
+            </div>
           </form>
         </div>
 
         {/* Results Area */}
-        <div className={`flex-1 overflow-y-auto p-8 md:p-12 no-scrollbar font-serif transition-colors ${isDark ? 'bg-black/40' : 'bg-white'}`}>
-          <AnimatePresence mode="wait">
-            {!legalAnalysis && !isLoading ? (
-              <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col items-center justify-center text-center font-sans">
-                <LucideIcons.Gavel className={`w-16 h-16 mb-8 transition-colors ${isDark ? 'text-white/20' : 'text-black/10'}`} />
-                <h3 className={`text-2xl font-black mb-2 uppercase tracking-tighter transition-colors ${isDark ? 'text-white/40' : 'text-black/30'}`}>Legal Intelligence Node</h3>
-                <p className={`max-w-xs text-sm transition-colors ${isDark ? 'text-white/20' : 'text-black/20'}`}>Analyze legal concepts and retrieve relevant public documentation.</p>
-              </motion.div>
-            ) : isLoading ? (
-              <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col items-center justify-center font-sans">
-                <LucideIcons.FileSearch className={`w-12 h-12 animate-pulse mb-6 transition-colors ${isDark ? 'text-slate-500/30' : 'text-slate-700/20'}`} />
-                <p className={`font-black tracking-widest text-xs animate-pulse transition-colors ${isDark ? 'text-slate-500/50' : 'text-slate-700/50'}`}>SEARCHING STATUTORY DATABASES...</p>
-              </motion.div>
-            ) : (
-              <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl mx-auto space-y-12">
-                <div className={`border p-8 md:p-12 rounded-[40px] shadow-2xl relative group transition-all duration-700 ${isDark ? 'bg-[#0f172a] border-white/5' : 'bg-[#fdfdfc] border-black/5'}`}>
-                   <div className={`absolute top-0 left-0 w-full h-1 transition-colors ${isDark ? 'bg-slate-500' : 'bg-slate-700'}`} />
-                   <h3 className={`text-3xl font-black mb-8 border-b pb-8 transition-colors ${isDark ? 'text-white border-white/5' : 'text-black border-black/5'}`}>Research Synthesis</h3>
-                   <div className="space-y-10">
-                     <p className={`text-lg leading-relaxed italic transition-colors ${isDark ? 'text-white/70' : 'text-black/70'}`}>
-                       {legalAnalysis.summary}
-                     </p>
-                     
-                     <div className="space-y-8">
-                       {legalAnalysis.clauses.map((c, i) => (
-                         <div key={i} className={`border-l-4 pl-8 transition-colors ${isDark ? 'border-slate-500' : 'border-slate-700'}`}>
-                           <h4 className={`text-[10px] font-black uppercase tracking-widest mb-2 font-sans transition-colors ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{c.title}</h4>
-                           <p className={`text-base leading-relaxed transition-colors ${isDark ? 'text-white/50' : 'text-black/60'}`}>{c.content}</p>
-                         </div>
-                       ))}
-                     </div>
-                   </div>
-                   
-                   <div className={`mt-16 pt-8 border-t flex items-center justify-between font-sans transition-colors ${isDark ? 'border-white/5' : 'border-black/5'}`}>
-                     <div className={`flex items-center gap-3 transition-colors ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                       <LucideIcons.Lock className="w-4 h-4" />
-                       <span className="text-[10px] font-black uppercase tracking-widest">Confidential Synthesis</span>
-                     </div>
-                     <button className={`text-[10px] font-black tracking-widest uppercase px-6 py-3 rounded-2xl transition-all ${isDark ? 'bg-white/5 text-white/40 hover:bg-white/10' : 'bg-black/5 text-black/40 hover:bg-black/10'}`}>Download Report</button>
-                   </div>
+        <div className={`flex-1 overflow-y-auto p-4 md:p-8 no-scrollbar font-serif transition-colors ${isDark ? 'bg-black/40' : 'bg-white'}`}>
+           <div className="max-w-3xl mx-auto space-y-8 pb-20">
+              {messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center font-sans mt-20">
+                  <LucideIcons.Scale className={`w-16 h-16 mb-8 transition-colors ${isDark ? 'text-white/10' : 'text-black/5'}`} />
+                  <h3 className={`text-2xl font-black mb-2 uppercase tracking-tighter transition-colors ${isDark ? 'text-white/40' : 'text-black/30'}`}>Legal Intelligence Node</h3>
+                  <p className={`max-w-xs text-sm transition-colors ${isDark ? 'text-white/20' : 'text-black/20'}`}>Analyze legal concepts under the updated Indian Penal Framework.</p>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              ) : (
+                messages.map((msg, i) => {
+                  const isUser = msg.role === 'user';
+                  if (isUser) return null; // We hide user messages to keep it clean like a "Report"
+                  
+                  return (
+                    <div key={i} className={`border p-8 md:p-10 rounded-[40px] shadow-2xl relative transition-all duration-700 animate-in fade-in slide-in-from-bottom-4 ${isDark ? 'bg-[#0f172a] border-white/5' : 'bg-[#fdfdfc] border-black/5'}`}>
+                       <div className={`absolute top-0 left-0 w-full h-1 transition-colors ${isDark ? 'bg-slate-500' : 'bg-slate-700'}`} />
+                       <div className="prose prose-sm dark:prose-invert max-w-none leading-relaxed">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {msg.content}
+                          </ReactMarkdown>
+                       </div>
+                       
+                       {/* Activity Chips during stream */}
+                       {isStreaming && i === messages.length - 1 && activity.length > 0 && (
+                         <div className="mt-8 flex flex-wrap gap-2">
+                           {activity.map((act, idx) => (
+                             <div key={idx} className={`px-3 py-1.5 rounded-full border flex items-center gap-2 text-[9px] font-black uppercase tracking-widest ${isDark ? 'bg-white/5 border-white/10 text-white/40' : 'bg-black/5 border-black/5 text-black/40'}`}>
+                                {act.status === 'running' ? <LucideIcons.Loader2 className="w-3 h-3 animate-spin" /> : <LucideIcons.Check className="w-3 h-3 text-emerald-500" />}
+                                {act.tool.replace(/_/g, ' ')}
+                             </div>
+                           ))}
+                         </div>
+                       )}
+                    </div>
+                  );
+                })
+              )}
+              <div ref={endRef} />
+           </div>
         </div>
       </div>
     </div>

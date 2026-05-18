@@ -49,35 +49,41 @@ async function callLLM(model: string, messages: any[], tools: any[]): Promise<Re
     const ollamaUrl = (process.env.OLLAMA_URL || 'http://127.0.0.1:11434/api/chat').replace('localhost', '127.0.0.1');
     const ollamaModel = process.env.OLLAMA_MODEL || 'mistral';
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout for local model
+    // Simple retry wrapper for Ollama
+    const fetchWithRetry = async (url: string, options: any, retries = 2) => {
+      for (let i = 0; i <= retries; i++) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+          const res = await fetch(url, { ...options, signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (res.ok) return res;
+        } catch (e) {
+          if (i === retries) throw e;
+          console.warn(`[AGENT] Ollama retry ${i + 1}/${retries}...`);
+          await new Promise(r => setTimeout(r, 1000)); // wait 1s
+        }
+      }
+      return null;
+    };
 
-      const ollamaRes = await fetch(ollamaUrl, {
+    try {
+      const ollamaRes = await fetchWithRetry(ollamaUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
         body: JSON.stringify({
           model: ollamaModel,
           messages: messages.map(m => {
             const msg: any = { role: m.role, content: m.content || "" };
             if (m.role === 'assistant' && m.tool_calls) {
-              msg.tool_calls = m.tool_calls.map(tc => {
+              msg.tool_calls = m.tool_calls.map((tc: any) => {
                 let parsedArgs = tc.function.arguments;
                 if (typeof parsedArgs === 'string' && parsedArgs.trim() !== '') {
                   try {
                     parsedArgs = JSON.parse(parsedArgs);
-                  } catch (e) {
-                    // Fallback if it's not valid JSON yet
-                  }
+                  } catch (e) { /**/ }
                 }
-                return {
-                  ...tc,
-                  function: {
-                    ...tc.function,
-                    arguments: parsedArgs
-                  }
-                };
+                return { ...tc, function: { ...tc.function, arguments: parsedArgs } };
               });
             }
             if (m.role === 'tool') msg.tool_call_id = m.tool_call_id;
@@ -86,19 +92,14 @@ async function callLLM(model: string, messages: any[], tools: any[]): Promise<Re
           stream: true,
           options: {
             temperature: 0.7,
-            num_ctx: 4096 
+            num_ctx: 16384 // Increased from 4096 to handle multiple search results
           },
           tools: tools.length > 0 ? tools.map(t => ({ type: 'function', function: t.schema })) : undefined
         }),
       });
-      clearTimeout(timeoutId);
 
-      if (ollamaRes.ok) return ollamaRes;
-
-      const errText = await ollamaRes.text();
-      console.warn(`[AGENT] Ollama Error (${ollamaRes.status}):`, errText);
-
-      if (model === 'ollama') throw new Error(`Ollama returned ${ollamaRes.status}: ${errText}`);
+      if (ollamaRes && ollamaRes.ok) return ollamaRes;
+      if (model === 'ollama') throw new Error(`Ollama failed after retries`);
     } catch (e) {
       if (model === 'ollama') throw e;
       const msg = e instanceof Error ? e.message : String(e);

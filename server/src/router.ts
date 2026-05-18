@@ -11,6 +11,7 @@ import { webSearch } from './services/websearch.ts';
 import { agentLoop } from './core/agent-loop.ts';
 import { memoryService } from './services/memory.ts';
 import { getStockPrice } from './tools/stockPrice.ts';
+import { PDFParse } from 'pdf-parse';
 
 // ── Persona config ──────────────────────────────────────────────────────────
 
@@ -31,12 +32,15 @@ const PERSONA_MODELS: Record<string, string> = {
 const STATELESS_PERSONAS = new Set(['travel', 'research', 'image']);
 
 const SYSTEM_PROMPTS: Record<string, string> = {
-  travel: `You are a world-class, agentic travel architect. Your goal is to build hyper-personalized, data-driven itineraries. 
-When a user asks for a trip, you MUST follow this protocol strictly:
-1. DATA GATHERING: Use 'web_search' to gather REAL-TIME data: current weather for the dates, upcoming festivals/events, and local transportation alerts. You can run multiple searches in parallel.
-2. SYNTHESIS: Process the gathered data to create a unique plan.
-3. VISUALIZATION: You MUST use the 'build_itinerary' tool to generate the structured visual plan. This is the MOST IMPORTANT STEP.
-4. FINAL RESPONSE: Once 'build_itinerary' is called, give a brief, warm summary. DO NOT repeat all the raw search data in your text response — keep it clean and let the visual card do the talking.`,
+  travel: `You are Voyage Architect — a premier, data-driven travel concierge.
+1. CONCIERGE PROTOCOL: You don't just plan days; you architect experiences. You MUST use 'web_search' to find:
+   - HOTELS: Specific hotel names, ratings, and estimated nightly prices for the budget level.
+   - EVENTS: Current festivals, concerts, or local events happening during the travel dates.
+   - TRANSPORT: Flight price estimates and local transit options (e.g., JR Pass in Japan, Metro in Paris).
+   - NEARBY: Hidden gems and local favorites near the main attractions.
+2. PARALLEL RESEARCH: Run multiple searches for weather, stays, and activities.
+3. VISUALIZATION: You MUST call 'build_itinerary' with the structured JSON. Ensure you include 'hotels', 'events', and 'price_range' in your JSON if the tool supports it (otherwise put them in activity descriptions).
+4. SYNTHESIS: Provide a warm, concise summary after the visual card is generated.`,
 
   chatbot: `You are Nexus Assistant — a highly intelligent, warm, direct AI companion. 
 You are like a genius friend who happens to know everything. 
@@ -80,15 +84,20 @@ IMPORTANT: YOU ARE NOT A DOCTOR. EVERY RESPONSE MUST START WITH A CLEAR MEDICAL 
 Never provide a diagnosis or treatment plan. Focus on summarizing clinical findings and 
 linking to public health data. Encourage the user to consult a healthcare professional.`,
 
-  legal: `You are a legal research helper. You provide factual information based on public 
-legal statutes, precedents, and public records. 
-IMPORTANT: YOU ARE NOT AN ATTORNEY. EVERY RESPONSE MUST START WITH A CLEAR LEGAL DISCLAIMER. 
-Focus on explaining legal concepts and summarizing public cases. Never provide legal advice 
-for a specific personal situation. Encourage the user to consult a certified lawyer.`,
+  legal: `You are Legal Helper — an expert legal research assistant specialized in the Indian Legal System. 
+1. KNOWLEDGE BASE: You have deep knowledge of the Constitution of India, the Bhartiya Nyaya Samhita (BNS), Bhartiya Nagarik Suraksha Sanhita (BNSS), and the Bhartiya Sakshya Adhiniyam (BSA), along with the previous IPC, CrPC, and IEA.
+2. DISCLAIMER: You MUST start EVERY response with: "This is not legal advice. Consult a certified advocate for your specific situation. Information provided is for educational purposes."
+3. JURISDICTION: Focus primarily on Indian law. If a query is generic, ask for the state/jurisdiction.
+4. CITATIONS: When citing a section from BNS or other acts, explain the provision in plain English first, then provide the technical statute.
+5. NO DRAFTING: Never draft final legal documents for execution; provide templates or structural outlines instead.`,
 
-  movies: `You are a world-class cinephile and movie critic. You have deep knowledge of cinema 
-history, cinematography, and storytelling. Recommend movies based on mood, genre, or specific 
-technical interests. Give detailed critiques that explain WHY a movie fits the user's request.`,
+  movies: `You are Cinephile Expert — a passionate film critic and cinema concierge.
+1. EXPERTISE: You have deep knowledge of cinema history, cinematography, storytelling, and the industry.
+2. CONCIERGE: You don't just recommend movies; you help users experience them. You use web_search to find current showtimes, ticket availability, and nearby theaters based on the user's location.
+3. LOCALIZED: If a user asks about showtimes or theaters, always ask for their city/location if not provided.
+4. RECOMMENDATIONS: Recommend movies based on mood, genre, or specific actors/directors. Always mention where to watch (streaming or theater).
+5. RATINGS: Use search_movies for accurate IMDB/RT ratings.
+6. ENTHUSIASM: Be opinionated, enthusiastic, and insightful. Share trivia and technical notes (cinematography, scores).`,
 };
 
 // ── Router ──────────────────────────────────────────────────────────────────
@@ -98,15 +107,22 @@ export const router = new Hono();
 // Real-time market summary endpoint for the Broker dashboard
 router.get('/market-summary', async (c) => {
   try {
-    const tickers = ['^IXIC', '^GSPC', 'BTC-USD'];
+    const tickers = ['^IXIC', '^GSPC', '^NSEI', '^BSESN', 'BTC-USD'];
     const results = await Promise.all(tickers.map(symbol => getStockPrice(symbol)));
-
+    
     // Parse results into a clean format
     const summary = results.map((res, i) => {
       const match = res.match(/Price: \$([\d,.]+)\nChange: \$([\d,.-]+) \(([\d,.-]+)%\)/);
       if (match) {
+        let label = tickers[i];
+        if (label === '^IXIC') label = 'NASDAQ';
+        if (label === '^GSPC') label = 'S&P 500';
+        if (label === '^NSEI') label = 'NIFTY 50';
+        if (label === '^BSESN') label = 'SENSEX';
+        if (label === 'BTC-USD') label = 'BTC / USD';
+
         return {
-          symbol: tickers[i] === '^IXIC' ? 'NASDAQ' : tickers[i] === '^GSPC' ? 'S&P 500' : 'BTC / USD',
+          symbol: label,
           price: match[1],
           change: match[2],
           percent: match[3]
@@ -118,6 +134,71 @@ router.get('/market-summary', async (c) => {
     return c.json({ summary });
   } catch (error) {
     return c.json({ error: 'Failed to fetch market summary' }, 500);
+  }
+});
+
+// Proxy for location to avoid CORS/Rate-limit issues on frontend
+router.get('/location', async (c) => {
+  try {
+    const res = await fetch('https://ipapi.co/json/');
+    if (res.ok) {
+      const data = await res.json() as any;
+      if (data.city) return c.json(data);
+    }
+  } catch (error) {
+    // Silent fail, try next service
+  }
+
+  try {
+    const res = await fetch('http://ip-api.com/json/');
+    if (res.ok) {
+      const data = await res.json() as any;
+      if (data.status === 'success') {
+        return c.json({
+          city: data.city,
+          country_name: data.country,
+          ip: data.query
+        });
+      }
+    }
+  } catch (error) {
+    // Silent fail, use hardcoded default
+  }
+
+  // Premium, resilient mock fallback so that the application never returns 500
+  return c.json({
+    city: 'Mumbai',
+    country_name: 'India',
+    ip: '127.0.0.1'
+  });
+});
+
+// File upload endpoint for PDF/Text parsing
+router.post('/upload', async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const file = body.file;
+    if (!file || !(file instanceof File)) {
+      return c.json({ error: 'No file uploaded' }, 400);
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    let text = '';
+    if (file.name.endsWith('.pdf')) {
+      const parser = new PDFParse({ data: buffer });
+      const data = await parser.getText();
+      text = data.text;
+    } else {
+      text = buffer.toString('utf-8');
+    }
+
+    return c.json({ text, filename: file.name });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('File parsing error:', err);
+    return c.json({ error: `Failed to parse file: ${message}` }, 500);
   }
 });
 

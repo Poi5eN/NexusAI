@@ -37,6 +37,7 @@ import { chatHF } from './huggingface.ts';
 
 /** Returns a streaming Response from OpenRouter (SSE). */
 export async function streamChat(options: ChatOptions): Promise<Response> {
+  const apiKey = getApiKey();
   const modelsToTry = [options.model, ...FALLBACK_MODELS.filter(m => m !== options.model)];
   
   for (const model of modelsToTry) {
@@ -98,6 +99,7 @@ export async function streamChat(options: ChatOptions): Promise<Response> {
 
 /** Returns the full completion as a string (non-streaming). */
 export async function chat(options: ChatOptions): Promise<string> {
+  const apiKey = getApiKey();
   const modelsToTry = [options.model, ...FALLBACK_MODELS.filter(m => m !== options.model)];
 
   for (const model of modelsToTry) {

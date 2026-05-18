@@ -1,82 +1,539 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import * as LucideIcons from 'lucide-react';
+
+import {
+  FaLinkedinIn,
+  FaGithub,
+  FaRedditAlien,
+  FaGlobe,
+} from 'react-icons/fa';
+
+import { RiTwitterXFill } from 'react-icons/ri';
+
+import { HiOutlineMail } from 'react-icons/hi';
+
 import usePersonaStore from '../stores/personaStore';
 import ThemeToggle from '../components/ThemeToggle';
 
 export default function TeamPage() {
   const navigate = useNavigate();
+
   const { theme } = usePersonaStore();
-  
+
   const isDark = theme === 'dark';
 
+  const socials = [
+    {
+      icon: FaLinkedinIn,
+      url: 'https://linkedin.com/in/gouravkumarupadhyay',
+      label: 'LinkedIn',
+      color: '#0077B5',
+      glow: 'rgba(0,119,181,0.35)',
+    },
+
+    {
+      icon: FaGithub,
+      url: 'https://github.com/poi5en',
+      label: 'GitHub',
+      color: isDark ? '#ffffff' : '#111111',
+      glow: 'rgba(255,255,255,0.18)',
+    },
+
+    {
+      icon: RiTwitterXFill,
+      url: 'https://x.com/poi5en',
+      label: 'X',
+      color: isDark ? '#ffffff' : '#000000',
+      glow: 'rgba(255,255,255,0.15)',
+    },
+
+    {
+      icon: FaRedditAlien,
+      url: 'https://reddit.com/u/poi5en',
+      label: 'Reddit',
+      color: '#FF4500',
+      glow: 'rgba(255,69,0,0.35)',
+    },
+
+    {
+      icon: FaGlobe,
+      url: 'https://poi5en.dev',
+      label: 'Portfolio',
+      color: '#8B5CF6',
+      glow: 'rgba(139,92,246,0.35)',
+    },
+
+    {
+      icon: HiOutlineMail,
+      url: 'mailto:contact@poi5en.dev',
+      label: 'Mail',
+      color: '#EA4335',
+      glow: 'rgba(234,67,53,0.35)',
+    },
+  ];
+
   return (
-    <div className={`h-screen w-full transition-colors duration-700 ${isDark ? 'bg-[#020617] text-white' : 'bg-[#fdfdfc] text-[#1a1a1a]'} overflow-hidden flex flex-col relative font-sans selection:bg-amber-100`}>
-      {/* Background Subtle Elements */}
-      <div className={`absolute top-0 left-0 w-full h-[30%] bg-gradient-to-b pointer-events-none transition-colors duration-700 ${isDark ? 'from-blue-900/10 to-transparent' : 'from-amber-500/5 to-transparent'}`} />
+    <div
+      className={`
+        h-screen
+        w-full
+        overflow-hidden
+        flex
+        flex-col
+        relative
+        transition-colors
+        duration-700
+        font-sans
+        ${isDark
+          ? 'bg-[#020617] text-white'
+          : 'bg-[#fdfdfc] text-[#1a1a1a]'
+        }
+      `}
+    >
+      {/* Background Effects */}
+      <div
+        className={`
+          absolute
+          inset-0
+          pointer-events-none
+          transition-all
+          duration-700
+          ${isDark
+            ? 'bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_40%)]'
+            : 'bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.10),transparent_40%)]'
+          }
+        `}
+      />
 
       {/* Navbar */}
-      <nav className={`shrink-0 h-20 px-6 md:px-12 flex items-center justify-between z-50 transition-colors duration-700 ${isDark ? 'bg-black/20 border-b border-white/5 backdrop-blur-xl' : ''}`}>
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-          <LucideIcons.Layers className={`w-5 h-5 transition-colors ${isDark ? 'text-blue-500' : 'text-amber-600'}`} strokeWidth={2.5} />
-          <span className={`font-bold text-xl tracking-tight transition-colors ${isDark ? 'text-white' : 'text-[#1a1a1a]'}`}>NEXUS</span>
+      <nav
+        className={`
+          shrink-0
+          h-16
+          px-6
+          md:px-12
+          flex
+          items-center
+          justify-between
+          z-50
+          backdrop-blur-xl
+          border-b
+          transition-colors
+          duration-700
+          ${isDark
+            ? 'bg-black/20 border-white/5'
+            : 'bg-white/60 border-black/5'
+          }
+        `}
+      >
+        {/* Logo */}
+        <div
+          className="flex items-center gap-3 cursor-pointer"
+          onClick={() => navigate('/')}
+        >
+          <div
+            className={`
+              w-9
+              h-9
+              rounded-xl
+              flex
+              items-center
+              justify-center
+              ${isDark
+                ? 'bg-blue-500/10'
+                : 'bg-amber-500/10'
+              }
+            `}
+          >
+            <LucideIcons.Layers
+              className={`
+                w-4
+                h-4
+                ${isDark
+                  ? 'text-blue-400'
+                  : 'text-amber-600'
+                }
+              `}
+              strokeWidth={2.5}
+            />
+          </div>
+
+          <span
+            className={`
+              text-lg
+              font-black
+              tracking-tight
+              ${isDark
+                ? 'text-white'
+                : 'text-[#1a1a1a]'
+              }
+            `}
+          >
+            NEXUS
+          </span>
         </div>
-        <div className="flex items-center gap-8">
-          <button onClick={() => navigate('/')} className={`text-sm font-medium transition-colors ${isDark ? 'text-white/40 hover:text-white' : 'text-black/40 hover:text-black'}`}>Home</button>
-          <button onClick={() => navigate('/about')} className={`text-sm font-medium transition-colors ${isDark ? 'text-white/40 hover:text-white' : 'text-black/40 hover:text-black'}`}>About</button>
-          <button className={`text-sm font-medium transition-colors ${isDark ? 'text-blue-400' : 'text-amber-700'}`}>Team</button>
+
+        {/* Nav Items */}
+        <div className="hidden md:flex items-center gap-8">
+          <button
+            onClick={() => navigate('/')}
+            className={`
+              text-xs
+              font-medium
+              transition-colors
+              ${isDark
+                ? 'text-white/40 hover:text-white'
+                : 'text-black/40 hover:text-black'
+              }
+            `}
+          >
+            Home
+          </button>
+
+          <button
+            onClick={() => navigate('/about')}
+            className={`
+              text-xs
+              font-medium
+              transition-colors
+              ${isDark
+                ? 'text-white/40 hover:text-white'
+                : 'text-black/40 hover:text-black'
+              }
+            `}
+          >
+            About
+          </button>
+
+          <button
+            className={`
+              text-xs
+              font-medium
+              ${isDark
+                ? 'text-blue-400'
+                : 'text-amber-700'
+              }
+            `}
+          >
+            Team
+          </button>
+
           <ThemeToggle />
-          <button onClick={() => navigate('/app')} className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${isDark ? 'bg-white text-black hover:bg-blue-500 hover:text-white' : 'bg-[#1a1a1a] text-white hover:bg-black'}`}>Launch</button>
+
+          <button
+            onClick={() => navigate('/app')}
+            className={`
+              px-5
+              py-2
+              rounded-full
+              text-[10px]
+              font-black
+              uppercase
+              tracking-[0.2em]
+              transition-all
+              ${isDark
+                ? 'bg-white text-black hover:bg-blue-500 hover:text-white'
+                : 'bg-[#1a1a1a] text-white hover:bg-black'
+              }
+            `}
+          >
+            Launch
+          </button>
         </div>
       </nav>
 
-      {/* Profile Area */}
-      <main className="flex-1 flex items-center justify-center p-6 relative z-10">
-        <div className="max-w-3xl w-full">
-          <div className="text-center mb-12">
-            <motion.h1 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`text-5xl md:text-7xl font-serif font-medium tracking-tight mb-2 transition-colors ${isDark ? 'text-white' : 'text-[#1a1a1a]'}`}
-            >
-              The <span className={`italic transition-colors ${isDark ? 'text-blue-500' : 'text-amber-700'}`}>Architect.</span>
-            </motion.h1>
-            <p className={`font-bold uppercase tracking-widest text-[10px] transition-colors ${isDark ? 'text-white/30' : 'text-black/30'}`}>Lead System Designer</p>
-          </div>
-
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className={`p-10 md:p-16 rounded-[40px] border shadow-sm flex flex-col items-center relative overflow-hidden group transition-all duration-700 ${isDark ? 'bg-black/40 border-white/5' : 'bg-white border-black/5'}`}
+      {/* Main */}
+      <main
+        className="
+          flex-1
+          flex
+          items-center
+          justify-center
+          px-6
+          md:px-12
+          py-10
+          relative
+          z-10
+        "
+      >
+        <div
+          className="
+            max-w-6xl
+            w-full
+            flex
+            flex-col
+            md:flex-row
+            items-center
+            gap-12
+            md:gap-20
+          "
+        >
+          {/* Image Side */}
+          <motion.div
+            initial={{
+              opacity: 0,
+              x: -30,
+            }}
+            animate={{
+              opacity: 1,
+              x: 0,
+            }}
+            transition={{
+              duration: 0.7,
+            }}
+            className="
+              relative
+              w-full
+              md:w-1/2
+              max-w-[430px]
+              aspect-square
+            "
           >
-            <div className={`w-32 h-32 md:w-40 md:h-40 rounded-[48px] flex items-center justify-center mb-10 shadow-inner group-hover:scale-105 transition-all duration-700 ${isDark ? 'bg-blue-500/10' : 'bg-amber-50'}`}>
-               <span className={`text-5xl md:text-6xl font-serif italic font-medium transition-colors ${isDark ? 'text-blue-400' : 'text-amber-700'}`}>P</span>
-            </div>
-            
-            <div className="text-center mb-12">
-              <h2 className={`text-3xl md:text-4xl font-serif font-medium tracking-tight mb-2 transition-colors ${isDark ? 'text-white' : 'text-[#1a1a1a]'}`}>Gourav Kumar Upadhyay</h2>
-              <p className={`text-xs font-bold uppercase tracking-[0.3em] transition-colors ${isDark ? 'text-white/20' : 'text-black/20'}`}>Poi5eN • Engineering Lead</p>
-            </div>
+            {/* Glow */}
+            <div
+              className={`
+                absolute
+                inset-0
+                rounded-[48px]
+                blur-[90px]
+                opacity-20
+                ${isDark
+                  ? 'bg-blue-600'
+                  : 'bg-amber-600'
+                }
+              `}
+            />
 
-            <div className="flex gap-6">
-              {[
-                { icon: 'Linkedin', url: 'https://linkedin.com/in/poi5en', label: 'LinkedIn' },
-                { icon: 'Twitter', url: 'https://x.com/poi5en', label: 'X' },
-                { icon: 'MessageSquare', url: 'https://reddit.com/u/poi5en', label: 'Reddit' }
-              ].map(social => {
-                const SocialIcon = LucideIcons[social.icon] || LucideIcons.ExternalLink;
+            {/* Image */}
+            <div
+              className="
+                relative
+                z-10
+                overflow-hidden
+                rounded-[48px]
+                border
+                border-white/10
+                shadow-2xl
+              "
+            >
+              <img
+                src="https://64.media.tumblr.com/90f9bfbada882e00f20483cacbfa43ad/c3bad9d94a92a363-2c/s1280x1920/c695245e2a2e84d90b79522ed0c2daee6ac43170.jpg"
+                alt="Architect"
+                className="
+                  w-full
+                  h-full
+                  object-cover
+                  transition-transform
+                  duration-[3000ms]
+                  hover:scale-105
+                "
+              />
+            </div>
+          </motion.div>
+
+          {/* Content */}
+          <motion.div
+            initial={{
+              opacity: 0,
+              y: 20,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            transition={{
+              duration: 0.7,
+              delay: 0.15,
+            }}
+            className="
+              flex-1
+              text-center
+              md:text-left
+            "
+          >
+            <p
+              className={`
+                text-[10px]
+                font-black
+                uppercase
+                tracking-[0.45em]
+                mb-5
+                ${isDark
+                  ? 'text-white/20'
+                  : 'text-black/30'
+                }
+              `}
+            >
+              Lead System Designer • Poi5eN
+            </p>
+
+            <h1
+              className={`
+                text-5xl
+                md:text-7xl
+                font-serif
+                tracking-tight
+                leading-none
+                mb-4
+                ${isDark
+                  ? 'text-white'
+                  : 'text-[#1a1a1a]'
+                }
+              `}
+            >
+              The{' '}
+              <span
+                className={`
+                  italic
+                  ${isDark
+                    ? 'text-blue-500'
+                    : 'text-amber-700'
+                  }
+                `}
+              >
+                Architect.
+              </span>
+            </h1>
+
+            <h2
+              className={`
+                text-2xl
+                md:text-4xl
+                font-serif
+                mb-5
+                ${isDark
+                  ? 'text-white'
+                  : 'text-[#1a1a1a]'
+                }
+              `}
+            >
+              Gourav Kumar Upadhyay
+            </h2>
+
+            <p
+              className={`
+                max-w-xl
+                text-sm
+                md:text-base
+                leading-relaxed
+                mb-10
+                ${isDark
+                  ? 'text-white/50'
+                  : 'text-black/55'
+                }
+              `}
+            >
+              Specializing in multi-agent orchestration,
+              high-fidelity intelligence systems, and
+              next-generation AI infrastructure with
+              production-grade user experiences.
+            </p>
+
+            {/* Socials */}
+            <div
+              className="
+                flex
+                flex-wrap
+                justify-center
+                md:justify-start
+                gap-4
+              "
+            >
+              {socials.map((social) => {
+                const Icon = social.icon;
+
                 return (
-                  <a 
+                  <motion.a
                     key={social.label}
                     href={social.url}
                     target="_blank"
                     rel="noreferrer"
-                    className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-all transform hover:scale-110 active:scale-95 group/icon ${isDark ? 'bg-white/5 border-white/5 text-white/40 hover:bg-blue-600 hover:text-white' : 'bg-black/[0.02] border-black/5 text-black/40 hover:bg-amber-600 hover:text-white'}`}
                     title={social.label}
+                    whileHover={{
+                      y: -4,
+                      scale: 1.08,
+                    }}
+                    whileTap={{
+                      scale: 0.94,
+                    }}
+                    className={`
+                      group
+                      relative
+                      w-14
+                      h-14
+                      rounded-2xl
+                      flex
+                      items-center
+                      justify-center
+                      overflow-hidden
+                      border
+                      transition-all
+                      duration-500
+                      backdrop-blur-xl
+                      ${isDark
+                        ? 'bg-white/[0.03] border-white/10'
+                        : 'bg-white border-black/5 shadow-lg'
+                      }
+                    `}
+                    style={{
+                      boxShadow: `
+                        0 8px 32px rgba(0,0,0,0.12)
+                      `,
+                    }}
                   >
-                    <SocialIcon className="w-5 h-5" />
-                  </a>
+                    {/* Glow */}
+                    <div
+                      className="
+                        absolute
+                        inset-0
+                        opacity-0
+                        group-hover:opacity-100
+                        transition-opacity
+                        duration-500
+                      "
+                      style={{
+                        background: `
+                          radial-gradient(
+                            circle at center,
+                            ${social.glow} 0%,
+                            transparent 70%
+                          )
+                        `,
+                      }}
+                    />
+
+                    {/* Overlay */}
+                    <div
+                      className={`
+                        absolute
+                        inset-0
+                        opacity-0
+                        group-hover:opacity-100
+                        transition-opacity
+                        duration-500
+                        ${isDark
+                          ? 'bg-white/[0.03]'
+                          : 'bg-black/[0.02]'
+                        }
+                      `}
+                    />
+
+                    {/* Icon */}
+                    <Icon
+                      size={22}
+                      className="
+                        relative
+                        z-10
+                        transition-transform
+                        duration-500
+                        group-hover:scale-110
+                      "
+                      style={{
+                        color: social.color,
+                      }}
+                    />
+                  </motion.a>
                 );
               })}
             </div>
@@ -85,8 +542,25 @@ export default function TeamPage() {
       </main>
 
       {/* Footer */}
-      <footer className={`shrink-0 h-16 flex items-center justify-center px-8 text-[10px] font-medium tracking-[0.4em] uppercase transition-colors ${isDark ? 'text-white/10' : 'text-black/10'}`}>
-        Nexus Operational Unit
+      <footer
+        className={`
+          shrink-0
+          h-14
+          flex
+          items-center
+          justify-center
+          text-[8px]
+          font-black
+          tracking-[0.45em]
+          uppercase
+          transition-colors
+          ${isDark
+            ? 'text-white/10'
+            : 'text-black/10'
+          }
+        `}
+      >
+        Nexus Operational Unit • 2026
       </footer>
     </div>
   );

@@ -16,6 +16,21 @@ export function useStream(personaId) {
   });
   const [isStreaming, setIsStreaming] = useState(false);
   const [activity, setActivity] = useState([]); // Track tool execution events
+  const [location, setLocation] = useState(null);
+
+  // Fetch location on mount
+  useEffect(() => {
+    const getLoc = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/location`);
+        const data = await res.json();
+        if (data.city) setLocation(`${data.city}, ${data.country_name}`);
+      } catch (e) {
+        console.error('Location fetch failed:', e);
+      }
+    };
+    getLoc();
+  }, []);
 
   // Persist messages whenever they change
   useEffect(() => {
@@ -30,13 +45,13 @@ export function useStream(personaId) {
     setActivity([]);
 
     try {
-      // Use the current messages for context if needed, but here we just send the new one
-      // If the backend supported full history, we'd pass it here.
       const res = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Persona': personaId,
+          // Sanitize location to avoid "non ISO-8859-1" errors in headers
+          'X-Location': (location || 'Unknown').replace(/[^\x00-\x7F]/g, ""),
         },
         body: JSON.stringify({
           messages: [userMsg],
@@ -73,7 +88,7 @@ export function useStream(personaId) {
                   if (last && last.role === 'assistant') {
                     return [
                       ...prev.slice(0, -1),
-                      { ...last, content: last.content + event.content }
+                      { ...last, content: (last.content || '') + event.content }
                     ];
                   }
                   return prev;
@@ -105,6 +120,7 @@ export function useStream(personaId) {
                   ...prev,
                   {
                     role: 'assistant',
+                    content: '', // IMPORTANT: Init content to prevent "undefined"
                     tool: event.tool,
                     input: event.input,
                   }
@@ -124,6 +140,7 @@ export function useStream(personaId) {
                   ...prev,
                   {
                     role: 'assistant',
+                    content: '', // IMPORTANT: Init content to prevent "undefined"
                     result: event.result,
                   }
                 ]);
